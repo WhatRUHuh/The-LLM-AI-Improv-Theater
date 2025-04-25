@@ -1,22 +1,13 @@
 "use strict";
 const electron = require("electron");
-electron.contextBridge.exposeInMainWorld("ipcRenderer", {
-  on(...args) {
-    const [channel, listener] = args;
-    electron.ipcRenderer.on(channel, (event, ...args2) => listener(event, ...args2));
-  },
-  off(...args) {
-    const [channel, ...omit] = args;
-    electron.ipcRenderer.off(channel, ...omit);
-  },
-  send(...args) {
-    const [channel, ...omit] = args;
-    electron.ipcRenderer.send(channel, ...omit);
-  },
-  invoke(...args) {
-    const [channel, ...omit] = args;
-    return electron.ipcRenderer.invoke(channel, ...omit);
-  }
+electron.contextBridge.exposeInMainWorld("electronAPI", {
+  // 使用不同的键名，避免覆盖可能存在的其他 ipcRenderer 暴露
+  // --- 精确暴露存储相关的 invoke 通道 ---
+  readStore: (fileName, defaultValue) => electron.ipcRenderer.invoke("read-store", fileName, defaultValue),
+  writeStore: (fileName, data) => electron.ipcRenderer.invoke("write-store", fileName, data)
+  // 如果还需要通用的 on/off/send，可以在这里单独暴露，或者按需添加
+  // on: (channel, listener) => { /* ... 安全实现 ... */ },
+  // send: (channel, data) => { /* ... 安全实现 ... */ },
   // 你可以在这里暴露其他需要的 API。
 });
 function domReady(condition = ["complete", "interactive"]) {

@@ -1,6 +1,7 @@
-import { app, BrowserWindow, Menu } from 'electron'; // 导入 Menu
+import { app, BrowserWindow, Menu } from 'electron';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url'; // 导入 fileURLToPath
+import { fileURLToPath } from 'node:url';
+import { registerStoreHandlers } from './ipcHandlers'; // <-- 导入 IPC 处理器注册函数
 
 // 在 ES 模块作用域中获取当前目录
 const __filename = fileURLToPath(import.meta.url);
@@ -183,6 +184,7 @@ const createMenu = () => {
 
 // 应用准备就绪后执行
 app.whenReady().then(() => {
-  createWindow(); // 创建窗口
-  createMenu();   // 创建菜单
+  registerStoreHandlers(); // <-- 注册 IPC 处理器
+  createWindow();        // 创建窗口
+  createMenu();          // 创建菜单
 });

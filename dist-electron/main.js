@@ -1,18 +1,92 @@
-import { app, BrowserWindow, Menu } from "electron";
-import path from "node:path";
+import { app, ipcMain, BrowserWindow, Menu } from "electron";
+import path$1 from "node:path";
 import { fileURLToPath } from "node:url";
+import fs from "fs/promises";
+import path from "path";
+const storageDir = path.join(app.getPath("userData"), "TheLLMAIImprovTheaterData");
+async function ensureStorageDirExists() {
+  try {
+    await fs.access(storageDir);
+  } catch (error) {
+    if (error.code === "ENOENT") {
+      try {
+        await fs.mkdir(storageDir, { recursive: true });
+        console.log(`Storage directory created: ${storageDir}`);
+      } catch (mkdirError) {
+        console.error(`Error creating storage directory ${storageDir}:`, mkdirError);
+        throw new Error(`Failed to create storage directory: ${storageDir}`);
+      }
+    } else {
+      console.error(`Error accessing storage directory ${storageDir}:`, error);
+      throw new Error(`Failed to access storage directory: ${storageDir}`);
+    }
+  }
+}
+async function readStore(fileName, defaultValue) {
+  await ensureStorageDirExists();
+  const filePath = path.join(storageDir, fileName);
+  try {
+    const fileContent = await fs.readFile(filePath, { encoding: "utf-8" });
+    if (!fileContent) {
+      return defaultValue;
+    }
+    return JSON.parse(fileContent);
+  } catch (error) {
+    if (error.code === "ENOENT") {
+      console.log(`Store file ${fileName} not found, returning default value.`);
+      return defaultValue;
+    }
+    console.error(`Error reading or parsing store file ${filePath}:`, error);
+    return defaultValue;
+  }
+}
+async function writeStore(fileName, data) {
+  await ensureStorageDirExists();
+  const filePath = path.join(storageDir, fileName);
+  try {
+    const fileContent = JSON.stringify(data, null, 2);
+    await fs.writeFile(filePath, fileContent, { encoding: "utf-8" });
+    console.log(`Data successfully written to ${filePath}`);
+  } catch (error) {
+    console.error(`Error writing store file ${filePath}:`, error);
+    throw new Error(`Failed to write store file: ${fileName}`);
+  }
+}
+function registerStoreHandlers() {
+  ipcMain.handle("read-store", async (event, fileName, defaultValue) => {
+    console.log(`IPC received: read-store for ${fileName}`);
+    try {
+      const data = await readStore(fileName, defaultValue);
+      return { success: true, data };
+    } catch (error) {
+      console.error(`IPC error handling read-store for ${fileName}:`, error);
+      return { success: false, error: error.message || "读取存储时发生未知错误" };
+    }
+  });
+  ipcMain.handle("write-store", async (event, fileName, data) => {
+    console.log(`IPC received: write-store for ${fileName}`);
+    try {
+      await writeStore(fileName, data);
+      return { success: true };
+    } catch (error) {
+      console.error(`IPC error handling write-store for ${fileName}:`, error);
+      return { success: false, error: error.message || "写入存储时发生未知错误" };
+    }
+  });
+  console.log("Store IPC handlers registered.");
+}
 const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-process.env.DIST = path.join(__dirname, "../dist");
-process.env.VITE_PUBLIC = process.env.VITE_DEV_SERVER_URL ? path.join(__dirname, "../public") : process.env.DIST;
+const __dirname = path$1.dirname(__filename);
+process.env.DIST = path$1.join(__dirname, "../dist");
+process.env.VITE_PUBLIC = process.env.VITE_DEV_SERVER_URL ? path$1.join(__dirname, "../public") : process.env.DIST;
 let win;
 const VITE_DEV_SERVER_URL = process.env["VITE_DEV_SERVER_URL"];
 function createWindow() {
   win = new BrowserWindow({
     // 仅当 VITE_PUBLIC 定义时才设置图标
-    ...process.env.VITE_PUBLIC && { icon: path.join(process.env.VITE_PUBLIC, "electron-vite.svg") },
+    ...process.env.VITE_PUBLIC && { icon: path$1.join(process.env.VITE_PUBLIC, "electron-vite.svg") },
     webPreferences: {
-      preload: path.join(__dirname, "preload.js")
+      preload: path$1.join(__dirname, "preload.js")
       // 使用 __dirname
     }
   });
@@ -28,7 +102,7 @@ function createWindow() {
       app.quit();
       return;
     }
-    win.loadFile(path.join(distPath, "index.html"));
+    win.loadFile(path$1.join(distPath, "index.html"));
   }
 }
 app.on("window-all-closed", () => {
@@ -141,6 +215,7 @@ const createMenu = () => {
   Menu.setApplicationMenu(menu);
 };
 app.whenReady().then(() => {
+  registerStoreHandlers();
   createWindow();
   createMenu();
 });

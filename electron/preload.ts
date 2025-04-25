@@ -1,23 +1,14 @@
 import { contextBridge, ipcRenderer } from 'electron';
 
-// --------- 向渲染进程暴露一些 API ---------
-contextBridge.exposeInMainWorld('ipcRenderer', {
-  on(...args: Parameters<typeof ipcRenderer.on>) {
-    const [channel, listener] = args;
-    ipcRenderer.on(channel, (event, ...args) => listener(event, ...args));
-  },
-  off(...args: Parameters<typeof ipcRenderer.off>) {
-    const [channel, ...omit] = args;
-    ipcRenderer.off(channel, ...omit);
-  },
-  send(...args: Parameters<typeof ipcRenderer.send>) {
-    const [channel, ...omit] = args;
-    ipcRenderer.send(channel, ...omit);
-  },
-  invoke(...args: Parameters<typeof ipcRenderer.invoke>) {
-    const [channel, ...omit] = args;
-    return ipcRenderer.invoke(channel, ...omit);
-  },
+// --------- 向渲染进程暴露选择性的 API ---------
+contextBridge.exposeInMainWorld('electronAPI', { // 使用不同的键名，避免覆盖可能存在的其他 ipcRenderer 暴露
+  // --- 精确暴露存储相关的 invoke 通道 ---
+  readStore: (fileName: string, defaultValue: any) => ipcRenderer.invoke('read-store', fileName, defaultValue),
+  writeStore: (fileName: string, data: any) => ipcRenderer.invoke('write-store', fileName, data),
+
+  // 如果还需要通用的 on/off/send，可以在这里单独暴露，或者按需添加
+  // on: (channel, listener) => { /* ... 安全实现 ... */ },
+  // send: (channel, data) => { /* ... 安全实现 ... */ },
 
   // 你可以在这里暴露其他需要的 API。
 });
