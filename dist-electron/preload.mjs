@@ -17,8 +17,7 @@ electron.contextBridge.exposeInMainWorld("ipcRenderer", {
     const [channel, ...omit] = args;
     return electron.ipcRenderer.invoke(channel, ...omit);
   }
-  // You can expose other APTs you need here.
-  // ...
+  // 你可以在这里暴露其他需要的 API。
 });
 function domReady(condition = ["complete", "interactive"]) {
   return new Promise((resolve) => {
@@ -45,7 +44,7 @@ const safeDOM = {
     }
   }
 };
-function useLoading() {
+function createLoadingIndicator() {
   const className = `loaders-css__square-spin`;
   const styleContent = `
 @keyframes square-spin {
@@ -91,9 +90,11 @@ function useLoading() {
     }
   };
 }
-const { appendLoading, removeLoading } = useLoading();
+const { appendLoading, removeLoading } = createLoadingIndicator();
 domReady().then(appendLoading);
 window.onmessage = (ev) => {
-  ev.data.payload === "removeLoading" && removeLoading();
+  if (ev.data.payload === "removeLoading") {
+    removeLoading();
+  }
 };
 setTimeout(removeLoading, 4999);

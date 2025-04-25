@@ -1,25 +1,31 @@
 import React from 'react';
-// 移除了未使用的 Header 和 Footer 导入
 import { Layout, Menu, theme } from 'antd';
+import { useNavigate, useLocation } from 'react-router-dom'; // 导入导航和位置 Hooks
 import AppRouter from './router';
 
-// 移除了未使用的 Header 和 Footer 解构赋值
 const { Content, Sider } = Layout;
 
-// 占位菜单项 (稍后会被替换)
-const items = [
-  { key: '1', label: '聊天' },
-  { key: '2', label: '剧本管理' },
-  { key: '3', label: '角色管理' },
-  { key: '4', label: 'AI 配置' },
-  { key: '5', label: '历史记录' },
-  { key: '6', label: '设置' },
+// 更新菜单项，key 对应路由路径
+const menuItems = [
+  { key: '/chat-setup', label: '聊天' }, // 默认指向聊天设置
+  { key: '/scripts', label: '剧本管理' },
+  { key: '/roles', label: '角色管理' },
+  { key: '/ai-config', label: 'AI 配置' },
+  { key: '/history', label: '历史记录' },
+  { key: '/settings', label: '设置' },
 ];
 
 const App: React.FC = () => {
+  const navigate = useNavigate(); // 获取导航函数
+  const location = useLocation(); // 获取当前位置信息
   const {
     token: { colorBgContainer, borderRadiusLG },
   } = theme.useToken();
+
+  // 菜单点击处理函数
+  const handleMenuClick = (e: { key: string }) => {
+    navigate(e.key); // 点击时导航到对应的路径
+  };
 
   return (
     <Layout style={{ minHeight: '100vh' }}> {/* 让布局填充整个屏幕高度 */}
@@ -29,10 +35,11 @@ const App: React.FC = () => {
         </div>
         <Menu
           mode="inline"
-          defaultSelectedKeys={['1']} // 默认选中项
+          // 根据当前路径设置选中项，移除 defaultSelectedKeys
+          selectedKeys={[location.pathname]}
           style={{ height: 'calc(100% - 64px)', borderRight: 0 }} // 调整高度
-          items={items}
-          // 稍后添加点击处理程序用于导航
+          items={menuItems} // 使用更新后的菜单项
+          onClick={handleMenuClick} // 添加点击处理函数
         />
       </Sider>
       <Layout> {/* 右侧布局 */}

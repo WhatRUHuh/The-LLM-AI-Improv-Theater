@@ -9,11 +9,11 @@ let win;
 const VITE_DEV_SERVER_URL = process.env["VITE_DEV_SERVER_URL"];
 function createWindow() {
   win = new BrowserWindow({
-    icon: path.join(process.env.VITE_PUBLIC, "electron-vite.svg"),
-    // <-- Use VITE_PUBLIC which is now correctly set
+    // 仅当 VITE_PUBLIC 定义时才设置图标
+    ...process.env.VITE_PUBLIC && { icon: path.join(process.env.VITE_PUBLIC, "electron-vite.svg") },
     webPreferences: {
       preload: path.join(__dirname, "preload.js")
-      // <-- Use __dirname here
+      // 使用 __dirname
     }
   });
   win.webContents.on("did-finish-load", () => {
@@ -22,7 +22,13 @@ function createWindow() {
   if (VITE_DEV_SERVER_URL) {
     win.loadURL(VITE_DEV_SERVER_URL);
   } else {
-    win.loadFile(path.join(process.env.DIST, "index.html"));
+    const distPath = process.env.DIST;
+    if (!distPath) {
+      console.error("DIST 环境变量未设置。");
+      app.quit();
+      return;
+    }
+    win.loadFile(path.join(distPath, "index.html"));
   }
 }
 app.on("window-all-closed", () => {
@@ -40,67 +46,49 @@ const createMenu = () => {
   const menuTemplate = [
     {
       label: "文件",
-      // File
       submenu: [
         { role: "quit", label: "退出" }
-        // Quit
       ]
     },
     {
       label: "编辑",
-      // Edit
       submenu: [
         { role: "undo", label: "撤销" },
-        // Undo
         { role: "redo", label: "重做" },
-        // Redo
         { type: "separator" },
         { role: "cut", label: "剪切" },
-        // Cut
         { role: "copy", label: "复制" },
-        // Copy
         { role: "paste", label: "粘贴" },
-        // Paste
         { role: "selectAll", label: "全选" }
-        // Select All
       ]
     },
     {
       label: "视图",
-      // View
       submenu: [
         { role: "reload", label: "重新加载" },
-        // Reload
         { role: "forceReload", label: "强制重新加载" },
-        // Force Reload
         { role: "toggleDevTools", label: "切换开发者工具" },
-        // Toggle Developer Tools
         { type: "separator" },
         { role: "resetZoom", label: "重置缩放" },
         { role: "zoomIn", label: "放大" },
         { role: "zoomOut", label: "缩小" },
         { type: "separator" },
         { role: "togglefullscreen", label: "切换全屏" }
-        // Toggle Full Screen
       ]
     },
     {
       label: "窗口",
-      // Window
       submenu: [
         { role: "minimize", label: "最小化" },
-        // Minimize
         { role: "close", label: "关闭" }
-        // Close
       ]
     },
     {
       label: "帮助",
-      // Help
       submenu: [
         {
           label: "了解更多",
-          // Learn More (Example)
+          // 示例：可以链接到项目文档或官网
           click: async () => {
             const { shell } = await import("electron");
             await shell.openExternal("https://electronjs.org");
@@ -112,6 +100,7 @@ const createMenu = () => {
   if (process.platform === "darwin") {
     menuTemplate.unshift({
       label: app.getName(),
+      // 获取应用名称
       submenu: [
         { role: "about", label: `关于 ${app.getName()}` },
         { type: "separator" },
@@ -144,7 +133,7 @@ const createMenu = () => {
         { role: "front", label: "全部置于顶层" },
         { type: "separator" },
         { role: "window", label: "窗口" }
-        // This might need specific handling or removal depending on needs
+        // 这个可能需要根据具体需求调整或移除
       );
     }
   }

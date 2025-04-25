@@ -1,22 +1,31 @@
 import React from 'react';
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 
-// 未来页面组件的占位符
-const PlaceholderPage: React.FC<{ title: string }> = ({ title }) => (
-  <div style={{ padding: '20px' }}>
-    <h2>{title}</h2>
-    <p>页面内容待填充...</p>
+// 导入所有页面组件
+import ChatSetupPage from './pages/ChatSetupPage';
+import ChatInterfacePage from './pages/ChatInterfacePage';
+import ScriptManagementPage from './pages/ScriptManagementPage';
+import RoleManagementPage from './pages/RoleManagementPage';
+import AIConfigPage from './pages/AIConfigPage';
+import HistoryPage from './pages/HistoryPage';
+import SettingsPage from './pages/SettingsPage';
+
+// 404 页面可以简单点
+const NotFoundPage: React.FC = () => (
+  <div style={{ padding: '20px', textAlign: 'center' }}>
+    <h2>404 - 页面未找到</h2>
+    <p>你要找的页面好像迷路了...</p>
   </div>
 );
+
 
 const AppRouter: React.FC = () => {
   return (
     <Routes>
-      {/* 初始默认路由，可以指向聊天设置或主界面 */}
-      <Route path="/" element={<PlaceholderPage title="首页/聊天设置" />} />
+      {/* 默认导航到聊天设置页 */}
+      <Route path="/" element={<Navigate to="/chat-setup" replace />} />
 
-      {/* 后续会在这里添加更多路由 */}
-      {/*
+      {/* 定义所有页面的路由 */}
       <Route path="/chat-setup" element={<ChatSetupPage />} />
       <Route path="/chat-interface" element={<ChatInterfacePage />} />
       <Route path="/scripts" element={<ScriptManagementPage />} />
@@ -24,10 +33,9 @@ const AppRouter: React.FC = () => {
       <Route path="/ai-config" element={<AIConfigPage />} />
       <Route path="/history" element={<HistoryPage />} />
       <Route path="/settings" element={<SettingsPage />} />
-      */}
 
       {/* 兜底路由，处理未匹配路径 */}
-      <Route path="*" element={<PlaceholderPage title="404 - 页面未找到" />} />
+      <Route path="*" element={<NotFoundPage />} />
     </Routes>
   );
 };
