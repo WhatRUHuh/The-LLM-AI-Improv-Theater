@@ -8,7 +8,11 @@ async function ensureStorageDirExists() {
   try {
     await fs.access(storageDir);
   } catch (error) {
-    if (error.code === "ENOENT") {
+    let errorCode;
+    if (error && typeof error === "object" && "code" in error) {
+      errorCode = error.code;
+    }
+    if (errorCode === "ENOENT") {
       try {
         await fs.mkdir(storageDir, { recursive: true });
         console.log(`Storage directory created: ${storageDir}`);
@@ -30,13 +34,20 @@ async function readStore(fileName, defaultValue) {
     if (!fileContent) {
       return defaultValue;
     }
-    return JSON.parse(fileContent);
-  } catch (error) {
-    if (error.code === "ENOENT") {
-      console.log(`Store file ${fileName} not found, returning default value.`);
+    try {
+      return JSON.parse(fileContent);
+    } catch (parseError) {
+      console.error(`Error parsing JSON from file ${filePath}:`, parseError);
       return defaultValue;
     }
-    console.error(`Error reading or parsing store file ${filePath}:`, error);
+  } catch (error) {
+    if (error && typeof error === "object" && "code" in error) {
+      if (error.code === "ENOENT") {
+        console.log(`Store file ${fileName} not found, returning default value.`);
+        return defaultValue;
+      }
+    }
+    console.error(`Error reading store file ${filePath}:`, error);
     return defaultValue;
   }
 }
@@ -49,7 +60,8 @@ async function writeStore(fileName, data) {
     console.log(`Data successfully written to ${filePath}`);
   } catch (error) {
     console.error(`Error writing store file ${filePath}:`, error);
-    throw new Error(`Failed to write store file: ${fileName}`);
+    const message = error instanceof Error ? error.message : "写入存储时发生未知错误";
+    throw new Error(`Failed to write store file: ${fileName}. Reason: ${message}`);
   }
 }
 function registerStoreHandlers() {
@@ -60,7 +72,8 @@ function registerStoreHandlers() {
       return { success: true, data };
     } catch (error) {
       console.error(`IPC error handling read-store for ${fileName}:`, error);
-      return { success: false, error: error.message || "读取存储时发生未知错误" };
+      const message = error instanceof Error ? error.message : "读取存储时发生未知错误";
+      return { success: false, error: message };
     }
   });
   ipcMain.handle("write-store", async (event, fileName, data) => {
@@ -70,7 +83,8 @@ function registerStoreHandlers() {
       return { success: true };
     } catch (error) {
       console.error(`IPC error handling write-store for ${fileName}:`, error);
-      return { success: false, error: error.message || "写入存储时发生未知错误" };
+      const message = error instanceof Error ? error.message : "写入存储时发生未知错误";
+      return { success: false, error: message };
     }
   });
   console.log("Store IPC handlers registered.");

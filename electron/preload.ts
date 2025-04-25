@@ -3,8 +3,11 @@ import { contextBridge, ipcRenderer } from 'electron';
 // --------- 向渲染进程暴露选择性的 API ---------
 contextBridge.exposeInMainWorld('electronAPI', { // 使用不同的键名，避免覆盖可能存在的其他 ipcRenderer 暴露
   // --- 精确暴露存储相关的 invoke 通道 ---
-  readStore: (fileName: string, defaultValue: any) => ipcRenderer.invoke('read-store', fileName, defaultValue),
-  writeStore: (fileName: string, data: any) => ipcRenderer.invoke('write-store', fileName, data),
+  // 将参数类型从 any 改为 unknown，与 ipcHandler 保持一致
+  readStore: (fileName: string, defaultValue: unknown): Promise<{ success: boolean; data?: unknown; error?: string }> =>
+    ipcRenderer.invoke('read-store', fileName, defaultValue),
+  writeStore: (fileName: string, data: unknown): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke('write-store', fileName, data),
 
   // 如果还需要通用的 on/off/send，可以在这里单独暴露，或者按需添加
   // on: (channel, listener) => { /* ... 安全实现 ... */ },
