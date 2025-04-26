@@ -1,7 +1,9 @@
 import { app, BrowserWindow, Menu } from 'electron';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { registerStoreHandlers } from './ipcHandlers'; // <-- 导入 IPC 处理器注册函数
+import { registerStoreHandlers } from './ipcHandlers';
+import { llmServiceManager } from './llm/LLMServiceManager'; // <-- 导入 LLM 服务管理器
+import { ipcMain } from 'electron'; // <-- 确保导入 ipcMain
 
 // 在 ES 模块作用域中获取当前目录
 const __filename = fileURLToPath(import.meta.url);
@@ -184,9 +186,83 @@ const createMenu = () => {
 };
 
 
+/**
+ * 注册与 LLM 服务相关的 IPC 处理程序
+ */
+function registerLLMServiceHandlers() {
+  // 获取所有服务商信息 (名称、ID、默认模型)
+  ipcMain.handle('llm-get-services', async () => {
+    console.log('[IPC Main] Received llm-get-services');
+    try {
+      const services = llmServiceManager.getAllServices().map(service => ({
+        providerId: service.providerId,
+        providerName: service.providerName,
+        defaultModels: service.defaultModels,
+        // 注意：不在此处返回 API Key
+      }));
+      return { success: true, data: services };
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : '获取 LLM 服务列表时出错';
+      console.error('[IPC Main] Error handling llm-get-services:', error);
+      return { success: false, error: message };
+    }
+  });
+
+  // 设置指定服务商的 API Key
+  ipcMain.handle('llm-set-api-key', async (event, providerId: string, apiKey: string | null) => {
+     console.log(`[IPC Main] Received llm-set-api-key for ${providerId}`);
+     try {
+       const success = llmServiceManager.setApiKeyForService(providerId, apiKey);
+       if (success) {
+         // 可以在这里添加逻辑，将 API Key 持久化存储 (例如使用 jsonStore)
+         // await writeStore('apiKeys.json', { ...currentKeys, [providerId]: apiKey });
+         console.log(`API Key for ${providerId} set successfully via manager.`);
+         return { success: true };
+       } else {
+         return { success: false, error: `未找到服务商: ${providerId}` };
+       }
+     } catch (error: unknown) {
+       const message = error instanceof Error ? error.message : '设置 API Key 时出错';
+       console.error(`[IPC Main] Error handling llm-set-api-key for ${providerId}:`, error);
+       return { success: false, error: message };
+     }
+  });
+
+   // 添加获取可用模型的 IPC 处理器 (需要考虑自定义模型)
+   ipcMain.handle('llm-get-available-models', async (event, providerId: string) => {
+     console.log(`[IPC Main] Received llm-get-available-models for ${providerId}`);
+     const service = llmServiceManager.getService(providerId);
+     if (!service) {
+       return { success: false, error: `未找到服务商: ${providerId}` };
+     }
+     try {
+       // TODO: 从存储中读取该服务商的自定义模型列表
+       const customModels: string[] = []; // 示例： const customModels = await readStore(...)
+       const availableModels = service.getAvailableModels(customModels);
+       return { success: true, data: availableModels };
+     } catch (error: unknown) {
+       const message = error instanceof Error ? error.message : '获取可用模型时出错';
+       console.error(`[IPC Main] Error handling llm-get-available-models for ${providerId}:`, error);
+       return { success: false, error: message };
+     }
+   });
+
+
+  console.log('LLM Service IPC handlers registered.');
+}
+
+
 // 应用准备就绪后执行
-app.whenReady().then(() => {
-  registerStoreHandlers(); // <-- 注册 IPC 处理器
-  createWindow();        // 创建窗口
-  createMenu();          // 创建菜单
+app.whenReady().then(async () => { // <-- 改为 async 函数
+  try {
+    await llmServiceManager.initialize(); // <-- 初始化 LLM 服务管理器
+    registerStoreHandlers();           // 注册存储 IPC 处理器
+    registerLLMServiceHandlers();      // <-- 注册 LLM 服务 IPC 处理器
+    createWindow();                    // 创建窗口
+    createMenu();                      // 创建菜单
+  } catch (error) {
+     console.error("Failed during app initialization:", error);
+     // 这里可以显示一个错误窗口或直接退出
+     app.quit();
+  }
 });

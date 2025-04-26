@@ -5,7 +5,11 @@ electron.contextBridge.exposeInMainWorld("electronAPI", {
   // --- 精确暴露存储相关的 invoke 通道 ---
   // 将参数类型从 any 改为 unknown，与 ipcHandler 保持一致
   readStore: (fileName, defaultValue) => electron.ipcRenderer.invoke("read-store", fileName, defaultValue),
-  writeStore: (fileName, data) => electron.ipcRenderer.invoke("write-store", fileName, data)
+  writeStore: (fileName, data) => electron.ipcRenderer.invoke("write-store", fileName, data),
+  // --- LLM 服务相关 API ---
+  llmGetServices: () => electron.ipcRenderer.invoke("llm-get-services"),
+  llmSetApiKey: (providerId, apiKey) => electron.ipcRenderer.invoke("llm-set-api-key", providerId, apiKey),
+  llmGetAvailableModels: (providerId) => electron.ipcRenderer.invoke("llm-get-available-models", providerId)
   // 如果还需要通用的 on/off/send，可以在这里单独暴露，或者按需添加
   // on: (channel, listener) => { /* ... 安全实现 ... */ },
   // send: (channel, data) => { /* ... 安全实现 ... */ },

@@ -8,6 +8,19 @@ declare global {
       // 定义 writeStore 方法的类型签名
       writeStore: (fileName: string, data: unknown)
         => Promise<{ success: boolean; error?: string }>;
+
+      // --- LLM 服务相关 API 类型声明 ---
+      llmGetServices: ()
+        => Promise<{
+             success: boolean;
+             data?: { providerId: string; providerName: string; defaultModels: string[] }[];
+             error?: string;
+           }>;
+      llmSetApiKey: (providerId: string, apiKey: string | null)
+        => Promise<{ success: boolean; error?: string }>;
+      llmGetAvailableModels: (providerId: string)
+        => Promise<{ success: boolean; data?: string[]; error?: string }>;
+
       // 如果未来在 preload.ts 中暴露了更多 API，也需要在这里添加类型声明
     };
   }

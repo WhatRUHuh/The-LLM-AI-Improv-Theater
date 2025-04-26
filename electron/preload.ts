@@ -9,6 +9,14 @@ contextBridge.exposeInMainWorld('electronAPI', { // 使用不同的键名，避�
   writeStore: (fileName: string, data: unknown): Promise<{ success: boolean; error?: string }> =>
     ipcRenderer.invoke('write-store', fileName, data),
 
+  // --- LLM 服务相关 API ---
+  llmGetServices: (): Promise<{ success: boolean; data?: { providerId: string; providerName: string; defaultModels: string[] }[]; error?: string }> =>
+    ipcRenderer.invoke('llm-get-services'),
+  llmSetApiKey: (providerId: string, apiKey: string | null): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke('llm-set-api-key', providerId, apiKey),
+  llmGetAvailableModels: (providerId: string): Promise<{ success: boolean; data?: string[]; error?: string }> =>
+    ipcRenderer.invoke('llm-get-available-models', providerId),
+
   // 如果还需要通用的 on/off/send，可以在这里单独暴露，或者按需添加
   // on: (channel, listener) => { /* ... 安全实现 ... */ },
   // send: (channel, data) => { /* ... 安全实现 ... */ },
