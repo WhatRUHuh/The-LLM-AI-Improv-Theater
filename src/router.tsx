@@ -6,6 +6,7 @@ import ChatSetupPage from './pages/ChatSetupPage';
 import ChatInterfacePage from './pages/ChatInterfacePage';
 import ScriptManagementPage from './pages/ScriptManagementPage';
 import RoleManagementPage from './pages/RoleManagementPage';
+import RoleEditorPage from './pages/RoleEditorPage'; // <-- 导入新的编辑页面
 import AIConfigPage from './pages/AIConfigPage';
 import HistoryPage from './pages/HistoryPage';
 import SettingsPage from './pages/SettingsPage';
@@ -29,7 +30,10 @@ const AppRouter: React.FC = () => {
       <Route path="/chat-setup" element={<ChatSetupPage />} />
       <Route path="/chat-interface" element={<ChatInterfacePage />} />
       <Route path="/scripts" element={<ScriptManagementPage />} />
+      {/* 角色管理路由 */}
       <Route path="/roles" element={<RoleManagementPage />} />
+      <Route path="/roles/add" element={<RoleEditorPage />} /> {/* 添加角色路由 */}
+      <Route path="/roles/edit/:id" element={<RoleEditorPage />} /> {/* 编辑角色路由 */}
       <Route path="/ai-config" element={<AIConfigPage />} />
       <Route path="/history" element={<HistoryPage />} />
       <Route path="/settings" element={<SettingsPage />} />
