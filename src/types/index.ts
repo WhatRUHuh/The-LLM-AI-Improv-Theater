@@ -37,7 +37,13 @@ export interface Script {
   title: string;        // 剧本标题 (必填)
   scene?: string;       // 场景描述 (可选)
   characterIds?: string[]; // 涉及的角色 ID 列表 (可选)
-  // directives 字段已移除
+  // --- 新增字段 ---
+  genre?: string;       // 类型/题材 (可选, 例如：喜剧、悲剧、科幻)
+  setting?: string;     // 时代/背景设定 (可选, 例如：古代宫廷、未来都市)
+  synopsis?: string;    // 剧情梗概 (可选)
+  mood?: string;        // 氛围/基调 (可选, 例如：轻松、紧张、悬疑)
+  themes?: string;      // 主题 (可选, 例如：爱情、背叛、成长)
+  tags?: string[];      // 标签 (可选, 用于搜索和分类)
   // 可以添加其他字段，如作者、创建日期等
 }
 

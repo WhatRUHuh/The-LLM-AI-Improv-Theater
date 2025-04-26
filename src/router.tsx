@@ -6,7 +6,8 @@ import ChatSetupPage from './pages/ChatSetupPage';
 import ChatInterfacePage from './pages/ChatInterfacePage';
 import ScriptManagementPage from './pages/ScriptManagementPage';
 import RoleManagementPage from './pages/RoleManagementPage';
-import RoleEditorPage from './pages/RoleEditorPage'; // <-- 导入新的编辑页面
+import RoleEditorPage from './pages/RoleEditorPage';
+import ScriptEditorPage from './pages/ScriptEditorPage'; // <-- 导入新的剧本编辑页面
 import AIConfigPage from './pages/AIConfigPage';
 import HistoryPage from './pages/HistoryPage';
 import SettingsPage from './pages/SettingsPage';
@@ -29,7 +30,10 @@ const AppRouter: React.FC = () => {
       {/* 定义所有页面的路由 */}
       <Route path="/chat-setup" element={<ChatSetupPage />} />
       <Route path="/chat-interface" element={<ChatInterfacePage />} />
+      {/* 剧本管理路由 */}
       <Route path="/scripts" element={<ScriptManagementPage />} />
+      <Route path="/scripts/add" element={<ScriptEditorPage />} /> {/* 添加剧本路由 */}
+      <Route path="/scripts/edit/:id" element={<ScriptEditorPage />} /> {/* 编辑剧本路由 */}
       {/* 角色管理路由 */}
       <Route path="/roles" element={<RoleManagementPage />} />
       <Route path="/roles/add" element={<RoleEditorPage />} /> {/* 添加角色路由 */}

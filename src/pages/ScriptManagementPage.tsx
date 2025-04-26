@@ -1,15 +1,16 @@
 import React, { useState, useEffect } from 'react';
-// 增加 Select 组件导入
-import { Table, Button, Modal, Form, Input, message, Popconfirm, Tag, Select } from 'antd';
-// 同时导入 Script 和 AICharacter 类型
+// 移除 Modal, Form, Input, Select, uuidv4 的导入
+import { Table, Button, message, Popconfirm, Tag } from 'antd';
+import { useNavigate } from 'react-router-dom'; // 导入 useNavigate
 import { Script, AICharacter } from '../types';
-import { v4 as uuidv4 } from 'uuid';
+// uuid 不再需要
+// import { v4 as uuidv4 } from 'uuid';
 
-// 需要角色列表来查找名字，所以 columns 需要接收 roles 参数
+// columns 不再需要 handleEdit 函数，改为 navigateToEdit
 const columns = (
-  roles: AICharacter[], // 传入角色列表
+  roles: AICharacter[],
   handleDelete: (id: string) => void,
-  handleEdit: (record: Script) => void
+  navigateToEdit: (id: string) => void // 新增导航到编辑页的函数
 ) => [
   {
     title: '标题',
@@ -50,7 +51,8 @@ const columns = (
     key: 'action',
     render: (_: unknown, record: Script) => (
       <span>
-        <Button type="link" onClick={() => handleEdit(record)}>编辑</Button>
+        {/* 点击编辑按钮时调用 navigateToEdit */}
+        <Button type="link" onClick={() => navigateToEdit(record.id)}>编辑</Button>
         <Popconfirm
           title="确定删除这个剧本吗？"
           onConfirm={() => handleDelete(record.id)}
@@ -67,15 +69,18 @@ const columns = (
 const ScriptManagementPage: React.FC = () => {
   const [scripts, setScripts] = useState<Script[]>([]);
   const [loading, setLoading] = useState(false);
-  const [isModalVisible, setIsModalVisible] = useState(false);
-  const [editingScript, setEditingScript] = useState<Script | null>(null);
-  const [form] = Form.useForm();
-  const [allRoles, setAllRoles] = useState<AICharacter[]>([]); // 新增状态存储所有角色
+  const [allRoles, setAllRoles] = useState<AICharacter[]>([]); // 仍然需要角色列表来显示名字
+  const navigate = useNavigate(); // 获取导航函数
+
+  // 移除 Modal 相关的状态和 Form hook
+  // const [isModalVisible, setIsModalVisible] = useState(false);
+  // const [editingScript, setEditingScript] = useState<Script | null>(null);
+  // const [form] = Form.useForm();
 
   const scriptsFileName = 'scripts.json';
-  const rolesFileName = 'roles.json'; // 角色文件名
+  const rolesFileName = 'roles.json';
 
-  // 加载所有角色数据 (用于下拉选择和显示名字)
+  // 加载所有角色数据 (逻辑不变)
   const loadAllRoles = async () => {
     try {
       const result = await window.electronAPI.readStore(rolesFileName, [] as AICharacter[]);
@@ -122,78 +127,25 @@ const ScriptManagementPage: React.FC = () => {
     }
   };
 
-  // 组件加载时读取剧本和角色数据
+  // 组件加载时读取剧本和角色数据 (逻辑不变)
   useEffect(() => {
     loadScripts();
-    loadAllRoles(); // 同时加载角色列表
+    loadAllRoles();
   }, []);
 
-  // 显示模态框 (添加或编辑)
-  const showModal = (script: Script | null = null) => {
-    setEditingScript(script);
-    form.resetFields();
-    if (script) {
-      // 编辑时，直接设置 characterIds 给 Select 组件
-      form.setFieldsValue({
-        ...script,
-        // directives 字段已移除
-      });
-    } else {
-      // 添加时，确保 characterIds 字段存在且为空数组或 undefined
-       form.setFieldsValue({ characterIds: [] });
-    }
-    setIsModalVisible(true);
+  // 移除 showModal, handleOk, handleCancel 函数
+
+  // 跳转到添加页面
+  const navigateToAdd = () => {
+    navigate('/scripts/add');
   };
 
-  // 处理模态框确认
-  const handleOk = async () => {
-    try {
-      const values = await form.validateFields();
-      let updatedScripts: Script[];
-
-      // 从表单获取选中的 characterIds (Select 组件直接返回 ID 数组)
-      const selectedCharacterIds = values.characterIds || [];
-
-      if (editingScript) {
-        // 编辑模式
-        updatedScripts = scripts.map(script =>
-          script.id === editingScript.id ? {
-            ...script,
-            title: values.title, // 显式更新字段
-            scene: values.scene,
-            characterIds: selectedCharacterIds, // 使用选中的 ID 数组
-            // directives 字段已移除
-           } : script
-        );
-      } else {
-        // 添加模式
-        const newScript: Script = {
-          id: uuidv4(),
-          title: values.title,
-          scene: values.scene,
-          characterIds: selectedCharacterIds,
-          // directives 字段已移除
-        };
-        updatedScripts = [...scripts, newScript];
-      }
-
-      await saveScripts(updatedScripts); // 保存更新后的列表
-      setIsModalVisible(false);
-      setEditingScript(null); // 清除编辑状态
-      message.success(editingScript ? '剧本已更新' : '剧本已添加');
-
-    } catch (info) {
-      console.log('表单验证失败:', info);
-    }
+  // 跳转到编辑页面
+  const navigateToEdit = (id: string) => {
+    navigate(`/scripts/edit/${id}`);
   };
 
-  // 处理模态框取消
-  const handleCancel = () => {
-    setIsModalVisible(false);
-    setEditingScript(null);
-  };
-
-  // 处理删除
+  // 处理删除 (逻辑不变)
   const handleDelete = (id: string) => {
     const updatedScripts = scripts.filter(script => script.id !== id);
     saveScripts(updatedScripts);
@@ -202,64 +154,18 @@ const ScriptManagementPage: React.FC = () => {
 
   return (
     <div>
-      <Button type="primary" onClick={() => showModal()} style={{ marginBottom: 16 }}>
+      {/* 点击按钮跳转到添加页面 */}
+      <Button type="primary" onClick={navigateToAdd} style={{ marginBottom: 16 }}>
         添加剧本
       </Button>
       <Table
-        // 将加载的角色列表传递给 columns 函数
-        columns={columns(allRoles, handleDelete, showModal)}
+        columns={columns(allRoles, handleDelete, navigateToEdit)} // 传入角色列表、删除和导航函数
         dataSource={scripts}
-        loading={loading || !allRoles} // 角色列表加载中也显示 loading
+        loading={loading || !allRoles.length} // 角色列表加载中也显示 loading
         rowKey="id"
         pagination={false}
       />
-
-      <Modal
-        title={editingScript ? "编辑剧本" : "添加新剧本"}
-        open={isModalVisible}
-        onOk={handleOk}
-        onCancel={handleCancel}
-        okText="确定"
-        cancelText="取消"
-        destroyOnClose
-        width={600} // 可以让模态框宽一点，方便编辑
-      >
-        <Form form={form} layout="vertical" name="script_form">
-          <Form.Item
-            name="title"
-            label="剧本标题"
-            rules={[{ required: true, message: '请输入剧本标题!' }]}
-          >
-            <Input />
-          </Form.Item>
-          <Form.Item
-            name="scene"
-            label="场景描述 (可选)"
-          >
-            <Input.TextArea rows={3} placeholder="描述故事发生的场景..." />
-          </Form.Item>
-          <Form.Item
-            name="characterIds" // 改为 characterIds
-            label="选择角色 (可选)"
-          >
-            {/* 使用 Select 组件进行多选 */}
-            <Select
-              mode="multiple"
-              allowClear
-              style={{ width: '100%' }}
-              placeholder="请选择参演角色"
-              options={allRoles.map(role => ({ // 使用加载的角色列表生成选项
-                label: role.name,
-                value: role.id,
-              }))}
-              filterOption={(input, option) => // 添加搜索功能
-                (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
-              }
-            />
-          </Form.Item>
-          {/* 导演指令输入框已移除 */}
-        </Form>
-      </Modal>
+      {/* Modal 已移除 */}
     </div>
   );
 };
