@@ -21,4 +21,25 @@ export interface AICharacter {
   notes?: string;       // 其他备注 (可选)
 }
 
-// 未来可以添加更多类型定义，例如剧本、设置等
+/**
+ * 定义剧本中引用的简单角色信息
+ */
+export interface ScriptCharacterRef {
+  name: string; // 角色名称
+  role?: string; // 角色在该剧本中的定位或描述 (可选)
+}
+
+/**
+ * 定义剧本的数据结构
+ */
+export interface Script {
+  id: string;           // 唯一标识符
+  title: string;        // 剧本标题 (必填)
+  scene?: string;       // 场景描述 (可选)
+  characterIds?: string[]; // 涉及的角色 ID 列表 (可选)
+  // directives 字段已移除
+  // 可以添加其他字段，如作者、创建日期等
+}
+
+
+// 未来可以添加更多类型定义，例如设置等
