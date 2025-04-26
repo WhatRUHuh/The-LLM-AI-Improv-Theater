@@ -31,7 +31,9 @@ function createWindow() {
     // 仅当 VITE_PUBLIC 定义时才设置图标
     ...(process.env.VITE_PUBLIC && { icon: path.join(process.env.VITE_PUBLIC, 'electron-vite.svg') }),
     webPreferences: {
-      preload: path.join(__dirname, 'preload.js'), // 使用 __dirname
+      // preload: path.join(__dirname, 'preload.js'), // 旧路径，可能不正确
+      // Vite Electron 插件通常将 preload 编译为 .mjs
+      preload: path.join(__dirname, 'preload.mjs'), // <-- 尝试使用 .mjs 后缀
     },
   });
 

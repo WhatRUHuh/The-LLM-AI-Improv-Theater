@@ -25,10 +25,13 @@ export function registerStoreHandlers(): void {
   // 处理写入存储请求
   // 将 data 类型改为 unknown
   ipcMain.handle('write-store', async (event, fileName: string, data: unknown) => {
-    console.log(`IPC received: write-store for ${fileName}`);
+    // 添加更详细的日志，包括传入的数据
+    console.log(`[IPC Handler] Received 'write-store' for ${fileName} with data:`, JSON.stringify(data, null, 2));
     try {
+      console.log(`[IPC Handler] Calling writeStore function for ${fileName}...`); // <-- 添加日志
       // writeStore 现在接受 T 或 unknown
       await writeStore(fileName, data);
+      console.log(`[IPC Handler] writeStore function for ${fileName} completed successfully.`); // <-- 添加日志
       return { success: true };
     } catch (error: unknown) { // 将 error 类型改为 unknown
       console.error(`IPC error handling write-store for ${fileName}:`, error);
