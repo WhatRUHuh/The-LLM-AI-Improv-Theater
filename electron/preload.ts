@@ -16,6 +16,9 @@ contextBridge.exposeInMainWorld('electronAPI', { // 使用不同的键名，避�
     ipcRenderer.invoke('llm-set-api-key', providerId, apiKey),
   llmGetAvailableModels: (providerId: string): Promise<{ success: boolean; data?: string[]; error?: string }> =>
     ipcRenderer.invoke('llm-get-available-models', providerId),
+  // 新增获取已保存 Keys 的 API
+  llmGetSavedKeys: (): Promise<{ success: boolean; data?: Record<string, string | null>; error?: string }> =>
+    ipcRenderer.invoke('llm-get-saved-keys'),
 
   // 如果还需要通用的 on/off/send，可以在这里单独暴露，或者按需添加
   // on: (channel, listener) => { /* ... 安全实现 ... */ },

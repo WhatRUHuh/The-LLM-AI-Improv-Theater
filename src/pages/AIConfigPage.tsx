@@ -39,10 +39,25 @@ const AIConfigPage: React.FC = () => {
     }
   };
 
+  // 加载已保存的 API Keys
+  const loadSavedKeys = async () => {
+    try {
+      const result = await window.electronAPI.llmGetSavedKeys();
+      if (result.success && result.data) {
+        // 将加载到的 keys 更新到 apiKeys 状态中
+        setApiKeys(new Map(Object.entries(result.data).filter(([, value]) => value !== null) as [string, string][]));
+        console.log('[AIConfigPage] Loaded saved API keys:', result.data);
+      } else {
+        message.error(`加载已保存的 API Keys 失败: ${result.error || '未知错误'}`);
+      }
+    } catch (error) {
+       message.error(`调用获取已保存 API Keys 时出错: ${error}`);
+    }
+  };
+
   useEffect(() => {
     loadServices();
-    // TODO: 在这里可以尝试从本地存储 (如 'apiKeys.json') 加载已保存的 API Keys
-    // 并更新 setApiKeys 状态
+    loadSavedKeys(); // 在加载服务商后加载已保存的 Keys
   }, []);
 
   // 处理 API Key 输入变化
@@ -55,13 +70,19 @@ const AIConfigPage: React.FC = () => {
     const apiKey = apiKeys.get(providerId) || null; // 获取输入的 Key，空字符串视为 null
     setSavingStatus(prev => new Map(prev).set(providerId, true)); // 设置保存中状态
     try {
-      // 调用后端设置 API Key
+      // 调用后端设置 API Key (现在后端会持久化)
       const result = await window.electronAPI.llmSetApiKey(providerId, apiKey);
       if (result.success) {
-        message.success(`${services.find(s=>s.providerId===providerId)?.providerName || providerId} API Key 已保存！`);
-        // TODO: 实际应用中，这里应该将 apiKey 保存到本地存储 ('apiKeys.json')
-        // 后端 setApiKeyForService 只是设置了内存中的 key，并未持久化
-        // 例如: await window.electronAPI.writeStore('apiKeys.json', { ...currentKeys, [providerId]: apiKey });
+        message.success(`${services.find(s => s.providerId === providerId)?.providerName || providerId} API Key 已保存！`);
+        // 保存成功后，本地状态 apiKeys 已经通过 onChange 更新了，无需额外操作
+        // 如果保存的是空字符串或 null (表示删除)，也需要更新状态
+        if (!apiKey) {
+           setApiKeys(prev => {
+             const newMap = new Map(prev);
+             newMap.delete(providerId);
+             return newMap;
+           });
+        }
       } else {
         message.error(`保存 API Key 失败: ${result.error || '未知错误'}`);
       }

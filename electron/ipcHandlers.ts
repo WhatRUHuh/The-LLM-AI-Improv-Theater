@@ -43,4 +43,104 @@ export function registerStoreHandlers(): void {
   console.log('Store IPC handlers registered.');
 }
 
-// 注意：确保在 main.ts 中调用 registerStoreHandlers() 来激活这些处理器。
+// --- LLM Service Handlers ---
+import { llmServiceManager } from './llm/LLMServiceManager'; // 导入 LLM 服务管理器
+
+// 定义存储 API Keys 的文件名
+const API_KEYS_FILE = 'apiKeys.json';
+
+/**
+ * 注册与 LLM 服务相关的 IPC 处理程序
+ */
+export function registerLLMServiceHandlers(): void { // <-- 确保导出
+  // 获取所有服务商信息 (名称、ID、默认模型)
+  ipcMain.handle('llm-get-services', async () => {
+    console.log('[IPC Main] Received llm-get-services');
+    try {
+      const services = llmServiceManager.getAllServices().map(service => ({
+        providerId: service.providerId,
+        providerName: service.providerName,
+        defaultModels: service.defaultModels,
+        // 注意：不在此处返回 API Key
+      }));
+      return { success: true, data: services };
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : '获取 LLM 服务列表时出错';
+      console.error('[IPC Main] Error handling llm-get-services:', error);
+      return { success: false, error: message };
+    }
+  });
+
+  // 设置指定服务商的 API Key (同时持久化保存)
+  ipcMain.handle('llm-set-api-key', async (event, providerId: string, apiKey: string | null) => {
+     console.log(`[IPC Main] Received llm-set-api-key for ${providerId}`);
+     try {
+       // 1. 先在内存中设置 Key (初始化客户端等)
+       const managerSuccess = llmServiceManager.setApiKeyForService(providerId, apiKey);
+       if (!managerSuccess) {
+         return { success: false, error: `未找到服务商: ${providerId}` };
+       }
+
+       // 2. 读取当前所有已保存的 Keys
+       const currentKeys = await readStore<Record<string, string | null>>(API_KEYS_FILE, {});
+
+       // 3. 更新或删除指定 providerId 的 Key
+       if (apiKey && apiKey.trim() !== '') { // 只有非空字符串才保存
+         currentKeys[providerId] = apiKey;
+       } else {
+         delete currentKeys[providerId]; // 如果传入 null 或空字符串，则删除该 Key
+       }
+
+       // 4. 将更新后的 Keys 写回文件
+       await writeStore(API_KEYS_FILE, currentKeys);
+
+       console.log(`API Key for ${providerId} set and persisted successfully.`);
+       return { success: true };
+
+     } catch (error: unknown) {
+       const message = error instanceof Error ? error.message : '设置并保存 API Key 时出错';
+       console.error(`[IPC Main] Error handling llm-set-api-key for ${providerId}:`, error);
+       return { success: false, error: message };
+     }
+  });
+
+  // 新增：获取所有已保存的 API Keys
+  ipcMain.handle('llm-get-saved-keys', async () => {
+    console.log('[IPC Main] Received llm-get-saved-keys');
+    try {
+      const savedKeys = await readStore<Record<string, string | null>>(API_KEYS_FILE, {});
+      // 出于安全考虑，通常不应该直接返回 Key，但在这个本地应用中暂时允许
+      // 更好的做法是只返回哪些服务商配置了 Key (true/false)
+      return { success: true, data: savedKeys };
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : '读取已保存的 API Keys 时出错';
+      console.error('[IPC Main] Error handling llm-get-saved-keys:', error);
+      return { success: false, error: message };
+    }
+  });
+
+
+   // 添加获取可用模型的 IPC 处理器 (需要考虑自定义模型)
+   ipcMain.handle('llm-get-available-models', async (event, providerId: string) => {
+     console.log(`[IPC Main] Received llm-get-available-models for ${providerId}`);
+     const service = llmServiceManager.getService(providerId);
+     if (!service) {
+       return { success: false, error: `未找到服务商: ${providerId}` };
+     }
+     try {
+       // TODO: 从存储中读取该服务商的自定义模型列表
+       const customModels: string[] = []; // 示例： const customModels = await readStore(...)
+       const availableModels = service.getAvailableModels(customModels);
+       return { success: true, data: availableModels };
+     } catch (error: unknown) {
+       const message = error instanceof Error ? error.message : '获取可用模型时出错';
+       console.error(`[IPC Main] Error handling llm-get-available-models for ${providerId}:`, error);
+       return { success: false, error: message };
+     }
+   });
+
+
+  console.log('LLM Service IPC handlers registered.');
+}
+
+// 注意：确保在 main.ts 中调用 registerLLMServiceHandlers() 来激活这些处理器。

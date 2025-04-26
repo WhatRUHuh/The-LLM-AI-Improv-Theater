@@ -20,6 +20,9 @@ declare global {
         => Promise<{ success: boolean; error?: string }>;
       llmGetAvailableModels: (providerId: string)
         => Promise<{ success: boolean; data?: string[]; error?: string }>;
+      // 新增获取已保存 Keys 的类型声明
+      llmGetSavedKeys: ()
+        => Promise<{ success: boolean; data?: Record<string, string | null>; error?: string }>;
 
       // 如果未来在 preload.ts 中暴露了更多 API，也需要在这里添加类型声明
     };
