@@ -2,6 +2,7 @@ import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 
 // 导入所有页面组件
+import ChatModeSelectionPage from './pages/ChatModeSelectionPage'; // <-- 导入新页面
 import ChatSetupPage from './pages/ChatSetupPage';
 import ChatInterfacePage from './pages/ChatInterfacePage';
 import ScriptManagementPage from './pages/ScriptManagementPage';
@@ -24,10 +25,11 @@ const NotFoundPage: React.FC = () => (
 const AppRouter: React.FC = () => {
   return (
     <Routes>
-      {/* 默认导航到聊天设置页 */}
-      <Route path="/" element={<Navigate to="/chat-setup" replace />} />
+      {/* 默认导航到聊天模式选择页 */}
+      <Route path="/" element={<Navigate to="/chat-mode-selection" replace />} />
 
       {/* 定义所有页面的路由 */}
+      <Route path="/chat-mode-selection" element={<ChatModeSelectionPage />} /> {/* <-- 添加新路由 */}
       <Route path="/chat-setup" element={<ChatSetupPage />} />
       <Route path="/chat-interface" element={<ChatInterfacePage />} />
       {/* 剧本管理路由 */}
