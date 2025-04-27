@@ -1,5 +1,6 @@
-import Anthropic from '@anthropic-ai/sdk'; // 稍后需要安装 @anthropic-ai/sdk
+import Anthropic, { ClientOptions } from '@anthropic-ai/sdk'; // 导入 ClientOptions
 import { BaseLLM, LLMResponse, LLMChatOptions } from './BaseLLM';
+import { proxyManager } from '../proxyManager'; // <-- 导入 proxyManager
 
 /**
  * Anthropic Claude 服务商的实现
@@ -29,10 +30,18 @@ export class AnthropicLLM extends BaseLLM {
     super.setApiKey(apiKey);
     if (apiKey) {
       try {
-        this.anthropic = new Anthropic({
+        // 从 proxyManager 获取通用代理 Agent
+        const httpAgent = proxyManager.getProxyAgent();
+        console.log(`[Anthropic] Initializing client with proxy agent: ${httpAgent ? 'YES' : 'NO'}`);
+
+        const clientOptions: ClientOptions = {
           apiKey: apiKey,
-          // baseURL: this.baseApiUrl, // 根据 SDK 文档确认是否需要
-        });
+          // 如果获取到了代理 Agent，则配置给 SDK
+          httpAgent: httpAgent ?? undefined,
+          // baseURL: this.baseApiUrl, // 可以考虑允许用户配置 Base URL
+        };
+
+        this.anthropic = new Anthropic(clientOptions);
         console.log(`Anthropic client initialized for provider: ${this.providerId}`);
       } catch (error) {
          console.error(`Failed to initialize Anthropic client for ${this.providerId}:`, error);

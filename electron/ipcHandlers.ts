@@ -1,22 +1,28 @@
 import { ipcMain } from 'electron';
 import { readStore, writeStore } from './storage/jsonStore'; // 导入存储函数
 import { LLMChatOptions, LLMResponse } from './llm/BaseLLM'; // <-- 导入 LLM 类型
+import { llmServiceManager } from './llm/LLMServiceManager'; // 导入 LLM 服务管理器
+import { proxyManager, ProxyConfig } from './proxyManager'; // <-- 导入 proxyManager 和类型
+
+// --- 文件名常量 ---
+const API_KEYS_FILE = 'apiKeys.json';
+const CUSTOM_MODELS_FILE = 'customModels.json';
+const PROXY_CONFIG_FILE = 'proxyConfig.json'; // <-- 定义代理配置文件名
+
+// --- 类型定义 ---
+type CustomModelsStore = Record<string, string[]>;
 
 /**
  * 注册与数据存储相关的 IPC 处理程序。
  */
 export function registerStoreHandlers(): void {
   // 处理读取存储请求
-  // 将 defaultValue 类型改为 unknown
   ipcMain.handle('read-store', async (event, fileName: string, defaultValue: unknown) => {
     console.log(`IPC received: read-store for ${fileName}`);
     try {
-      // readStore 现在接受 T (由 defaultValue 推断) 或 unknown
-      // 由于 defaultValue 是 unknown，readStore 的 T 也会是 unknown，除非调用者能提供更具体的类型
-      // 但在这里，我们直接传递 unknown 即可，readStore 内部会处理
       const data = await readStore(fileName, defaultValue);
       return { success: true, data };
-    } catch (error: unknown) { // 将 error 类型改为 unknown
+    } catch (error: unknown) {
       console.error(`IPC error handling read-store for ${fileName}:`, error);
       const message = error instanceof Error ? error.message : '读取存储时发生未知错误';
       return { success: false, error: message };
@@ -24,17 +30,13 @@ export function registerStoreHandlers(): void {
   });
 
   // 处理写入存储请求
-  // 将 data 类型改为 unknown
   ipcMain.handle('write-store', async (event, fileName: string, data: unknown) => {
-    // 添加更详细的日志，包括传入的数据
     console.log(`[IPC Handler] Received 'write-store' for ${fileName} with data:`, JSON.stringify(data, null, 2));
     try {
-      console.log(`[IPC Handler] Calling writeStore function for ${fileName}...`); // <-- 添加日志
-      // writeStore 现在接受 T 或 unknown
       await writeStore(fileName, data);
-      console.log(`[IPC Handler] writeStore function for ${fileName} completed successfully.`); // <-- 添加日志
+      console.log(`[IPC Handler] writeStore function for ${fileName} completed successfully.`);
       return { success: true };
-    } catch (error: unknown) { // 将 error 类型改为 unknown
+    } catch (error: unknown) {
       console.error(`IPC error handling write-store for ${fileName}:`, error);
       const message = error instanceof Error ? error.message : '写入存储时发生未知错误';
       return { success: false, error: message };
@@ -44,19 +46,11 @@ export function registerStoreHandlers(): void {
   console.log('Store IPC handlers registered.');
 }
 
-// --- LLM Service Handlers ---
-import { llmServiceManager } from './llm/LLMServiceManager'; // 导入 LLM 服务管理器
-
-// 定义存储 API Keys 的文件名
-const API_KEYS_FILE = 'apiKeys.json';
-const CUSTOM_MODELS_FILE = 'customModels.json'; // <-- 定义存储自定义模型的文件名
-type CustomModelsStore = Record<string, string[]>; // <-- 定义存储格式类型
-
 /**
  * 注册与 LLM 服务相关的 IPC 处理程序
  */
-export function registerLLMServiceHandlers(): void { // <-- 确保导出
-  // 获取所有服务商信息 (名称、ID、默认模型)
+export function registerLLMServiceHandlers(): void {
+  // 获取所有服务商信息
   ipcMain.handle('llm-get-services', async () => {
     console.log('[IPC Main] Received llm-get-services');
     try {
@@ -64,7 +58,6 @@ export function registerLLMServiceHandlers(): void { // <-- 确保导出
         providerId: service.providerId,
         providerName: service.providerName,
         defaultModels: service.defaultModels,
-        // 注意：不在此处返回 API Key
       }));
       return { success: true, data: services };
     } catch (error: unknown) {
@@ -74,32 +67,23 @@ export function registerLLMServiceHandlers(): void { // <-- 确保导出
     }
   });
 
-  // 设置指定服务商的 API Key (同时持久化保存)
+  // 设置 API Key
   ipcMain.handle('llm-set-api-key', async (event, providerId: string, apiKey: string | null) => {
      console.log(`[IPC Main] Received llm-set-api-key for ${providerId}`);
      try {
-       // 1. 先在内存中设置 Key (初始化客户端等)
        const managerSuccess = llmServiceManager.setApiKeyForService(providerId, apiKey);
        if (!managerSuccess) {
          return { success: false, error: `未找到服务商: ${providerId}` };
        }
-
-       // 2. 读取当前所有已保存的 Keys
        const currentKeys = await readStore<Record<string, string | null>>(API_KEYS_FILE, {});
-
-       // 3. 更新或删除指定 providerId 的 Key
-       if (apiKey && apiKey.trim() !== '') { // 只有非空字符串才保存
+       if (apiKey && apiKey.trim() !== '') {
          currentKeys[providerId] = apiKey;
        } else {
-         delete currentKeys[providerId]; // 如果传入 null 或空字符串，则删除该 Key
+         delete currentKeys[providerId];
        }
-
-       // 4. 将更新后的 Keys 写回文件
        await writeStore(API_KEYS_FILE, currentKeys);
-
        console.log(`API Key for ${providerId} set and persisted successfully.`);
        return { success: true };
-
      } catch (error: unknown) {
        const message = error instanceof Error ? error.message : '设置并保存 API Key 时出错';
        console.error(`[IPC Main] Error handling llm-set-api-key for ${providerId}:`, error);
@@ -107,13 +91,11 @@ export function registerLLMServiceHandlers(): void { // <-- 确保导出
      }
   });
 
-  // 新增：获取所有已保存的 API Keys
+  // 获取已保存的 API Keys
   ipcMain.handle('llm-get-saved-keys', async () => {
     console.log('[IPC Main] Received llm-get-saved-keys');
     try {
       const savedKeys = await readStore<Record<string, string | null>>(API_KEYS_FILE, {});
-      // 出于安全考虑，通常不应该直接返回 Key，但在这个本地应用中暂时允许
-      // 更好的做法是只返回哪些服务商配置了 Key (true/false)
       return { success: true, data: savedKeys };
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : '读取已保存的 API Keys 时出错';
@@ -122,8 +104,7 @@ export function registerLLMServiceHandlers(): void { // <-- 确保导出
     }
   });
 
-
-   // 添加获取可用模型的 IPC 处理器 (需要考虑自定义模型)
+   // 获取可用模型
    ipcMain.handle('llm-get-available-models', async (event, providerId: string) => {
      console.log(`[IPC Main] Received llm-get-available-models for ${providerId}`);
      const service = llmServiceManager.getService(providerId);
@@ -131,10 +112,9 @@ export function registerLLMServiceHandlers(): void { // <-- 确保导出
        return { success: false, error: `未找到服务商: ${providerId}` };
      }
      try {
-       // 从存储中读取该服务商的自定义模型列表
        const allCustomModels = await readStore<CustomModelsStore>(CUSTOM_MODELS_FILE, {});
        const customModels = allCustomModels[providerId] || [];
-       const availableModels = service.getAvailableModels(customModels); // 传递自定义模型
+       const availableModels = service.getAvailableModels(customModels);
        return { success: true, data: availableModels };
      } catch (error: unknown) {
        const message = error instanceof Error ? error.message : '获取可用模型时出错';
@@ -143,29 +123,21 @@ export function registerLLMServiceHandlers(): void { // <-- 确保导出
      }
    });
 
-
-// 新增：处理聊天生成请求
-   // 需要从 BaseLLM 导入 LLMChatOptions 和 LLMResponse 类型
-   // (确保在文件顶部添加: import { LLMChatOptions, LLMResponse } from './llm/BaseLLM';)
+   // 处理聊天生成请求
    ipcMain.handle('llm-generate-chat', async (event, providerId: string, options: LLMChatOptions): Promise<{ success: boolean; data?: LLMResponse; error?: string }> => {
      console.log(`[IPC Main] Received llm-generate-chat for ${providerId} with options:`, JSON.stringify(options, null, 2));
      const service = llmServiceManager.getService(providerId);
      if (!service) {
        return { success: false, error: `未找到服务商: ${providerId}` };
      }
-     // 检查 API Key 是否已设置 (虽然 generateChatCompletion 内部也会检查，但这里可以提前返回错误)
      if (!service.getApiKey()) {
         return { success: false, error: `服务商 ${providerId} 的 API Key 尚未设置` };
      }
-
      try {
-       // TODO: 在调用前可能需要验证 options 的结构是否符合 LLMChatOptions (虽然 TS 类型已约束)
        const result: LLMResponse = await service.generateChatCompletion(options);
        console.log(`[IPC Main] Chat completion result for ${providerId}:`, JSON.stringify(result, null, 2));
-       // 直接返回服务层的结果，它应该已经是 LLMResponse 格式 { content: ..., error: ... }
-       // 如果服务层返回了错误，也包含在 result.error 中
        if (result.error) {
-          return { success: false, error: result.error, data: result }; // 即使失败也返回 data 供调试
+          return { success: false, error: result.error, data: result };
        }
        return { success: true, data: result };
      } catch (error: unknown) {
@@ -175,37 +147,80 @@ export function registerLLMServiceHandlers(): void { // <-- 确保导出
      }
    });
 
-  // 新增：获取指定服务商的自定义模型列表
-  ipcMain.handle('llm-get-custom-models', async (event, providerId: string): Promise<{ success: boolean; data?: string[]; error?: string }> => {
-     console.log(`[IPC Main] Received llm-get-custom-models for ${providerId}`);
-     try {
-       const allCustomModels = await readStore<CustomModelsStore>(CUSTOM_MODELS_FILE, {});
-       const customModels = allCustomModels[providerId] || [];
-       return { success: true, data: customModels };
-     } catch (error: unknown) {
-       const message = error instanceof Error ? error.message : '读取自定义模型列表时出错';
-       console.error(`[IPC Main] Error handling llm-get-custom-models for ${providerId}:`, error);
-       return { success: false, error: message };
-     }
-  });
+   // 获取自定义模型列表
+   ipcMain.handle('llm-get-custom-models', async (event, providerId: string): Promise<{ success: boolean; data?: string[]; error?: string }> => {
+      console.log(`[IPC Main] Received llm-get-custom-models for ${providerId}`);
+      try {
+        const allCustomModels = await readStore<CustomModelsStore>(CUSTOM_MODELS_FILE, {});
+        const customModels = allCustomModels[providerId] || [];
+        return { success: true, data: customModels };
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : '读取自定义模型列表时出错';
+        console.error(`[IPC Main] Error handling llm-get-custom-models for ${providerId}:`, error);
+        return { success: false, error: message };
+      }
+   });
 
-  // 新增：保存指定服务商的自定义模型列表
-  ipcMain.handle('llm-save-custom-models', async (event, providerId: string, models: string[]): Promise<{ success: boolean; error?: string }> => {
-     console.log(`[IPC Main] Received llm-save-custom-models for ${providerId} with models:`, models);
-     try {
-       const allCustomModels = await readStore<CustomModelsStore>(CUSTOM_MODELS_FILE, {});
-       allCustomModels[providerId] = models; // 更新或添加该服务商的模型列表
-       await writeStore(CUSTOM_MODELS_FILE, allCustomModels);
-       console.log(`Custom models for ${providerId} saved successfully.`);
-       return { success: true };
-     } catch (error: unknown) {
-       const message = error instanceof Error ? error.message : '保存自定义模型列表时出错';
-       console.error(`[IPC Main] Error handling llm-save-custom-models for ${providerId}:`, error);
-       return { success: false, error: message };
-     }
-  });
+   // 保存自定义模型列表
+   ipcMain.handle('llm-save-custom-models', async (event, providerId: string, models: string[]): Promise<{ success: boolean; error?: string }> => {
+      console.log(`[IPC Main] Received llm-save-custom-models for ${providerId} with models:`, models);
+      try {
+        const allCustomModels = await readStore<CustomModelsStore>(CUSTOM_MODELS_FILE, {});
+        allCustomModels[providerId] = models;
+        await writeStore(CUSTOM_MODELS_FILE, allCustomModels);
+        console.log(`Custom models for ${providerId} saved successfully.`);
+        return { success: true };
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : '保存自定义模型列表时出错';
+        console.error(`[IPC Main] Error handling llm-save-custom-models for ${providerId}:`, error);
+        return { success: false, error: message };
+      }
+   });
 
   console.log('LLM Service IPC handlers registered.');
 }
 
-// 注意：确保在 main.ts 中调用 registerLLMServiceHandlers() 来激活这些处理器。
+/**
+ * 注册与代理设置相关的 IPC 处理程序
+ */
+export function registerProxyHandlers(): void {
+  // 获取当前代理配置
+  ipcMain.handle('proxy-get-config', async (): Promise<{ success: boolean; data?: ProxyConfig; error?: string }> => {
+    console.log('[IPC Main] Received proxy-get-config');
+    try {
+      // 直接从 proxyManager 获取当前配置，因为它应该反映了最新的状态（包括从文件加载的）
+      const currentConfig = proxyManager.getCurrentConfig();
+      // 或者，如果你想确保总是从文件读取最新保存的设置：
+      // const currentConfig = await readStore<ProxyConfig>(PROXY_CONFIG_FILE, { mode: 'none' });
+      return { success: true, data: currentConfig };
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : '读取代理配置时出错';
+      console.error('[IPC Main] Error handling proxy-get-config:', error);
+      return { success: false, error: message };
+    }
+  });
+
+  // 设置并应用新的代理配置
+  ipcMain.handle('proxy-set-config', async (event, newConfig: ProxyConfig): Promise<{ success: boolean; error?: string }> => {
+    console.log('[IPC Main] Received proxy-set-config with config:', newConfig);
+    try {
+      // 1. 先将新配置保存到文件
+      await writeStore(PROXY_CONFIG_FILE, newConfig);
+      console.log('[IPC Main] Proxy config saved to file.');
+
+      // 2. 再调用 proxyManager 应用新配置
+      await proxyManager.configureProxy(newConfig);
+      console.log('[IPC Main] Proxy config applied via proxyManager.');
+
+      return { success: true };
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : '设置并应用代理配置时出错';
+      console.error('[IPC Main] Error handling proxy-set-config:', error);
+      return { success: false, error: message };
+    }
+  });
+
+  console.log('Proxy IPC handlers registered.');
+}
+
+// 注意：确保在 main.ts 中调用所有 register...Handlers() 函数

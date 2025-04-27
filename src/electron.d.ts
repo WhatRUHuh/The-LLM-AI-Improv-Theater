@@ -1,4 +1,6 @@
 // 告诉 TypeScript 全局的 Window 接口上有一个 electronAPI 对象
+import type { ProxyConfig } from '../electron/proxyManager'; // <-- 导入 ProxyConfig 类型
+
 declare global {
   interface Window {
     electronAPI: {
@@ -28,6 +30,12 @@ declare global {
       llmGetCustomModels: (providerId: string)
         => Promise<{ success: boolean; data?: string[]; error?: string }>;
       llmSaveCustomModels: (providerId: string, models: string[])
+        => Promise<{ success: boolean; error?: string }>;
+
+      // 新增：获取和设置代理配置的类型声明
+      proxyGetConfig: ()
+        => Promise<{ success: boolean; data?: ProxyConfig; error?: string }>;
+      proxySetConfig: (newConfig: ProxyConfig)
         => Promise<{ success: boolean; error?: string }>;
 
       // 如果未来在 preload.ts 中暴露了更多 API，也需要在这里添加类型声明

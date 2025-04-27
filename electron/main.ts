@@ -2,12 +2,14 @@ import { app, BrowserWindow, Menu, shell } from 'electron'; // 导入需要的�
 import path from 'node:path';
 import fs from 'node:fs'; // 导入 fs 模块
 import { fileURLToPath } from 'node:url'; // 导入 fileURLToPath
-import { registerStoreHandlers, registerLLMServiceHandlers } from './ipcHandlers';
+import { registerStoreHandlers, registerLLMServiceHandlers, registerProxyHandlers } from './ipcHandlers'; // <-- 导入 registerProxyHandlers
 import { llmServiceManager } from './llm/LLMServiceManager';
+import { proxyManager, ProxyConfig } from './proxyManager'; // <-- 导入 proxyManager 和 ProxyConfig 类型
 import { readStore } from './storage/jsonStore';
 
 // --- 全局常量 ---
 const API_KEYS_FILE = 'apiKeys.json';
+const PROXY_CONFIG_FILE = 'proxyConfig.json'; // <-- 定义代理配置文件名
 
 // --- 路径设置 ---
 // 在 ES 模块作用域中获取当前运行文件的目录 (dist-electron)
@@ -201,6 +203,29 @@ async function loadAndSetApiKeys() {
   }
 }
 
+/**
+ * 加载已保存的代理配置并应用
+ */
+async function loadAndApplyProxyConfig() {
+  console.log('[Main Process] Loading saved proxy configuration...');
+  try {
+    // 读取存储的配置，如果文件不存在或内容无效，默认为 'none' 模式
+    const savedConfig = await readStore<ProxyConfig>(PROXY_CONFIG_FILE, { mode: 'none' });
+    console.log('[Main Process] Found saved proxy config:', savedConfig);
+    // 应用读取到的配置
+    await proxyManager.configureProxy(savedConfig);
+    console.log('[Main Process] Applied saved proxy configuration.');
+  } catch (error) {
+    console.error('[Main Process] Error loading or applying saved proxy configuration:', error);
+    // 出错时，确保应用无代理状态
+    try {
+      await proxyManager.configureProxy({ mode: 'none' });
+    } catch (fallbackError) {
+       console.error('[Main Process] Error setting proxy to none after failed load:', fallbackError);
+    }
+  }
+}
+
 // --- 应用生命周期事件 ---
 
 app.on('window-all-closed', () => {
@@ -218,10 +243,17 @@ app.on('activate', () => {
 app.whenReady().then(async () => {
   console.log('[Main Process] App ready.');
   try {
+    // **重要：先加载并应用代理配置**
+    await loadAndApplyProxyConfig();
+
+    // 然后再初始化 LLM 服务和加载 API Keys
     await llmServiceManager.initialize();
     await loadAndSetApiKeys();
+
+    // 注册 IPC handlers
     registerStoreHandlers();
     registerLLMServiceHandlers();
+    registerProxyHandlers(); // <-- 调用注册代理 handlers
     createWindow();
     createMenu();
     console.log('[Main Process] Initialization successful.');
