@@ -2,12 +2,10 @@ import { ipcMain } from 'electron';
 import { readStore, writeStore } from './storage/jsonStore'; // 导入存储函数
 import { LLMChatOptions, LLMResponse } from './llm/BaseLLM'; // <-- 导入 LLM 类型
 import { llmServiceManager } from './llm/LLMServiceManager'; // 导入 LLM 服务管理器
-import { proxyManager, ProxyConfig } from './proxyManager'; // <-- 导入 proxyManager 和类型
 
 // --- 文件名常量 ---
 const API_KEYS_FILE = 'apiKeys.json';
 const CUSTOM_MODELS_FILE = 'customModels.json';
-const PROXY_CONFIG_FILE = 'proxyConfig.json'; // <-- 定义代理配置文件名
 
 // --- 类型定义 ---
 type CustomModelsStore = Record<string, string[]>;
@@ -180,47 +178,6 @@ export function registerLLMServiceHandlers(): void {
   console.log('LLM Service IPC handlers registered.');
 }
 
-/**
- * 注册与代理设置相关的 IPC 处理程序
- */
-export function registerProxyHandlers(): void {
-  // 获取当前代理配置
-  ipcMain.handle('proxy-get-config', async (): Promise<{ success: boolean; data?: ProxyConfig; error?: string }> => {
-    console.log('[IPC Main] Received proxy-get-config');
-    try {
-      // 直接从 proxyManager 获取当前配置，因为它应该反映了最新的状态（包括从文件加载的）
-      const currentConfig = proxyManager.getCurrentConfig();
-      // 或者，如果你想确保总是从文件读取最新保存的设置：
-      // const currentConfig = await readStore<ProxyConfig>(PROXY_CONFIG_FILE, { mode: 'none' });
-      return { success: true, data: currentConfig };
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : '读取代理配置时出错';
-      console.error('[IPC Main] Error handling proxy-get-config:', error);
-      return { success: false, error: message };
-    }
-  });
 
-  // 设置并应用新的代理配置
-  ipcMain.handle('proxy-set-config', async (event, newConfig: ProxyConfig): Promise<{ success: boolean; error?: string }> => {
-    console.log('[IPC Main] Received proxy-set-config with config:', newConfig);
-    try {
-      // 1. 先将新配置保存到文件
-      await writeStore(PROXY_CONFIG_FILE, newConfig);
-      console.log('[IPC Main] Proxy config saved to file.');
-
-      // 2. 再调用 proxyManager 应用新配置
-      await proxyManager.configureProxy(newConfig);
-      console.log('[IPC Main] Proxy config applied via proxyManager.');
-
-      return { success: true };
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : '设置并应用代理配置时出错';
-      console.error('[IPC Main] Error handling proxy-set-config:', error);
-      return { success: false, error: message };
-    }
-  });
-
-  console.log('Proxy IPC handlers registered.');
-}
 
 // 注意：确保在 main.ts 中调用所有 register...Handlers() 函数
