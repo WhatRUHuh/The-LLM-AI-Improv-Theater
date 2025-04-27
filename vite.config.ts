@@ -3,6 +3,7 @@ import path from 'node:path';
 import react from '@vitejs/plugin-react';
 import electron from 'vite-plugin-electron/simple'; // 更新了导入方式
 import renderer from 'vite-plugin-electron-renderer'; // 更新了导入方式
+import { builtinModules } from 'node:module';
 
 // Vite 配置: https://vite.dev/config/
 export default defineConfig({
@@ -10,6 +11,13 @@ export default defineConfig({
   build: {
     // 确保在清理dist-electron目录后能重新生成文件
     emptyOutDir: false,
+    rollupOptions: {
+      // 将 registry-js 和其他原生模块标记为外部依赖
+      external: [
+        'registry-js',
+        ...builtinModules,
+      ],
+    },
   },
   plugins: [
     react(),
@@ -30,6 +38,10 @@ export default defineConfig({
             outDir: 'dist-electron',
             // 确保生成main.js文件
             rollupOptions: {
+              external: [
+                'registry-js',
+                ...builtinModules,
+              ],
               output: {
                 entryFileNames: '[name].js',
               },
@@ -60,6 +72,10 @@ export default defineConfig({
             outDir: 'dist-electron',
             // 确保生成preload.mjs文件
             rollupOptions: {
+              external: [
+                'registry-js',
+                ...builtinModules,
+              ],
               output: {
                 entryFileNames: '[name].mjs',
               },

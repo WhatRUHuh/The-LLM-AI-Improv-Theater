@@ -24,6 +24,9 @@
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-router-dom": "^7.5.2",
+    "redux": "^5.0.1",
+    "redux-persist": "^6.0.0",
+    "registry-js": "^1.16.0",
     "undici": "^7.8.0",
     "uuid": "^11.1.0"
   },

@@ -31,6 +31,27 @@ declare global {
       llmSaveCustomModels: (providerId: string, models: string[])
         => Promise<{ success: boolean; error?: string }>;
 
+      // --- 代理相关 API 类型声明 ---
+      proxyGetConfig: ()
+        => Promise<{
+             success: boolean;
+             data?: { mode: 'system' | 'custom' | 'none'; url?: string };
+             error?: string
+           }>;
+      proxySetConfig: (config: { mode: 'system' | 'custom' | 'none'; url?: string })
+        => Promise<{ success: boolean; error?: string }>;
+      proxyTestConnection: ()
+        => Promise<{
+             success: boolean;
+             data?: {
+               ip: string;
+               proxyUrl: string;
+               proxyMode: string;
+               googleAccessible: boolean;
+               testedSites: string;
+             };
+             error?: string;
+           }>;
 
 
       // 如果未来在 preload.ts 中暴露了更多 API，也需要在这里添加类型声明

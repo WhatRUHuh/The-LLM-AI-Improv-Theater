@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import type { LLMChatOptions, LLMResponse } from './llm/BaseLLM'; // <-- 导入 LLM 类型 (使用 type-only import)
+import type { ProxyConfig } from './proxyManager'; // <-- 导入代理类型
 
 // --------- 向渲染进程暴露选择性的 API ---------
 contextBridge.exposeInMainWorld('electronAPI', { // 使用不同的键名，避免覆盖可能存在的其他 ipcRenderer 暴露
@@ -31,6 +32,13 @@ contextBridge.exposeInMainWorld('electronAPI', { // 使用不同的键名，避�
    llmSaveCustomModels: (providerId: string, models: string[]): Promise<{ success: boolean; error?: string }> =>
      ipcRenderer.invoke('llm-save-custom-models', providerId, models),
 
+   // --- 代理相关 API ---
+   proxyGetConfig: (): Promise<{ success: boolean; data?: ProxyConfig; error?: string }> =>
+     ipcRenderer.invoke('proxy-get-config'),
+   proxySetConfig: (config: ProxyConfig): Promise<{ success: boolean; error?: string }> =>
+     ipcRenderer.invoke('proxy-set-config', config),
+   proxyTestConnection: (): Promise<{ success: boolean; data?: { ip: string; proxyUrl: string; proxyMode: string }; error?: string }> =>
+     ipcRenderer.invoke('proxy-test-connection'),
 
   // 如果还需要通用的 on/off/send，可以在这里单独暴露，或者按需添加
   // on: (channel, listener) => { /* ... 安全实现 ... */ },

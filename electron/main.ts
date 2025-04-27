@@ -2,12 +2,14 @@ import { app, BrowserWindow, Menu, shell } from 'electron'; // 导入需要的�
 import path from 'node:path';
 import fs from 'node:fs'; // 导入 fs 模块
 import { fileURLToPath } from 'node:url'; // 导入 fileURLToPath
-import { registerStoreHandlers, registerLLMServiceHandlers } from './ipcHandlers';
+import { registerStoreHandlers, registerLLMServiceHandlers, registerProxyHandlers } from './ipcHandlers';
 import { llmServiceManager } from './llm/LLMServiceManager';
+import { proxyManager } from './proxyManager';
 import { readStore } from './storage/jsonStore';
 
 // --- 全局常量 ---
 const API_KEYS_FILE = 'apiKeys.json';
+const PROXY_CONFIG_FILE = 'proxyConfig.json';
 
 // --- 路径设置 ---
 // 在 ES 模块作用域中获取当前运行文件的目录 (dist-electron)
@@ -201,6 +203,24 @@ async function loadAndSetApiKeys() {
   }
 }
 
+/**
+ * 加载已保存的代理配置并应用
+ */
+async function loadAndApplyProxyConfig() {
+  console.log('[Main Process] Loading saved proxy configuration...');
+  try {
+    const config = await readStore<{ mode: 'system' | 'custom' | 'none'; url?: string }>(
+      PROXY_CONFIG_FILE,
+      { mode: 'none' }
+    );
+    console.log(`[Main Process] Found proxy config: mode=${config.mode}, url=${config.url || 'none'}`);
+    await proxyManager.configureProxy(config);
+    console.log('[Main Process] Proxy configuration applied successfully.');
+  } catch (error) {
+    console.error('[Main Process] Error loading or applying proxy configuration:', error);
+  }
+}
+
 
 
 // --- 应用生命周期事件 ---
@@ -224,9 +244,14 @@ app.whenReady().then(async () => {
     await llmServiceManager.initialize();
     await loadAndSetApiKeys();
 
+    // 加载并应用代理配置
+    await loadAndApplyProxyConfig();
+
     // 注册 IPC handlers
     registerStoreHandlers();
     registerLLMServiceHandlers();
+    registerProxyHandlers();
+
     createWindow();
     createMenu();
     console.log('[Main Process] Initialization successful.');

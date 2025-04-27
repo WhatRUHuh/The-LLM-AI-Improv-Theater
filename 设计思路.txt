@@ -26,7 +26,7 @@
 4. **启动与构建**
    - 开发模式：```npm run electron:dev```  
    - 打包构建：```npm run electron:build```  
-
+npm run electron:dev:clean
 ---
 
 ## 🛠️ 2. 技术选型概览 (Tech Stack)
