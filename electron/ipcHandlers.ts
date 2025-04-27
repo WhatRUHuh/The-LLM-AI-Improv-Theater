@@ -49,6 +49,8 @@ import { llmServiceManager } from './llm/LLMServiceManager'; // 导入 LLM 服�
 
 // 定义存储 API Keys 的文件名
 const API_KEYS_FILE = 'apiKeys.json';
+const CUSTOM_MODELS_FILE = 'customModels.json'; // <-- 定义存储自定义模型的文件名
+type CustomModelsStore = Record<string, string[]>; // <-- 定义存储格式类型
 
 /**
  * 注册与 LLM 服务相关的 IPC 处理程序
@@ -129,9 +131,10 @@ export function registerLLMServiceHandlers(): void { // <-- 确保导出
        return { success: false, error: `未找到服务商: ${providerId}` };
      }
      try {
-       // TODO: 从存储中读取该服务商的自定义模型列表
-       const customModels: string[] = []; // 示例： const customModels = await readStore(...)
-       const availableModels = service.getAvailableModels(customModels);
+       // 从存储中读取该服务商的自定义模型列表
+       const allCustomModels = await readStore<CustomModelsStore>(CUSTOM_MODELS_FILE, {});
+       const customModels = allCustomModels[providerId] || [];
+       const availableModels = service.getAvailableModels(customModels); // 传递自定义模型
        return { success: true, data: availableModels };
      } catch (error: unknown) {
        const message = error instanceof Error ? error.message : '获取可用模型时出错';
@@ -171,6 +174,37 @@ export function registerLLMServiceHandlers(): void { // <-- 确保导出
        return { success: false, error: message };
      }
    });
+
+  // 新增：获取指定服务商的自定义模型列表
+  ipcMain.handle('llm-get-custom-models', async (event, providerId: string): Promise<{ success: boolean; data?: string[]; error?: string }> => {
+     console.log(`[IPC Main] Received llm-get-custom-models for ${providerId}`);
+     try {
+       const allCustomModels = await readStore<CustomModelsStore>(CUSTOM_MODELS_FILE, {});
+       const customModels = allCustomModels[providerId] || [];
+       return { success: true, data: customModels };
+     } catch (error: unknown) {
+       const message = error instanceof Error ? error.message : '读取自定义模型列表时出错';
+       console.error(`[IPC Main] Error handling llm-get-custom-models for ${providerId}:`, error);
+       return { success: false, error: message };
+     }
+  });
+
+  // 新增：保存指定服务商的自定义模型列表
+  ipcMain.handle('llm-save-custom-models', async (event, providerId: string, models: string[]): Promise<{ success: boolean; error?: string }> => {
+     console.log(`[IPC Main] Received llm-save-custom-models for ${providerId} with models:`, models);
+     try {
+       const allCustomModels = await readStore<CustomModelsStore>(CUSTOM_MODELS_FILE, {});
+       allCustomModels[providerId] = models; // 更新或添加该服务商的模型列表
+       await writeStore(CUSTOM_MODELS_FILE, allCustomModels);
+       console.log(`Custom models for ${providerId} saved successfully.`);
+       return { success: true };
+     } catch (error: unknown) {
+       const message = error instanceof Error ? error.message : '保存自定义模型列表时出错';
+       console.error(`[IPC Main] Error handling llm-save-custom-models for ${providerId}:`, error);
+       return { success: false, error: message };
+     }
+  });
+
   console.log('LLM Service IPC handlers registered.');
 }
 

@@ -24,6 +24,12 @@ declare global {
       llmGetSavedKeys: ()
         => Promise<{ success: boolean; data?: Record<string, string | null>; error?: string }>;
 
+      // 新增：获取和保存自定义模型列表的类型声明
+      llmGetCustomModels: (providerId: string)
+        => Promise<{ success: boolean; data?: string[]; error?: string }>;
+      llmSaveCustomModels: (providerId: string, models: string[])
+        => Promise<{ success: boolean; error?: string }>;
+
       // 如果未来在 preload.ts 中暴露了更多 API，也需要在这里添加类型声明
     };
   }

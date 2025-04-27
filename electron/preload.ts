@@ -25,6 +25,11 @@ contextBridge.exposeInMainWorld('electronAPI', { // 使用不同的键名，避�
    // 返回值 data 符合 LLMResponse 结构
    llmGenerateChat: (providerId: string, options: LLMChatOptions): Promise<{ success: boolean; data?: LLMResponse; error?: string }> =>
      ipcRenderer.invoke('llm-generate-chat', providerId, options),
+// 新增：获取和保存自定义模型列表
+   llmGetCustomModels: (providerId: string): Promise<{ success: boolean; data?: string[]; error?: string }> =>
+     ipcRenderer.invoke('llm-get-custom-models', providerId),
+   llmSaveCustomModels: (providerId: string, models: string[]): Promise<{ success: boolean; error?: string }> =>
+     ipcRenderer.invoke('llm-save-custom-models', providerId, models),
 
   // 如果还需要通用的 on/off/send，可以在这里单独暴露，或者按需添加
   // on: (channel, listener) => { /* ... 安全实现 ... */ },
