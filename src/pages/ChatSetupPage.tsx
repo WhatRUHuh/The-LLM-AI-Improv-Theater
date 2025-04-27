@@ -43,7 +43,7 @@ const ChatSetupPage: React.FC = () => {
         // 并行加载所有数据
         const [scriptsResult, charactersResult, servicesResult] = await Promise.all([
           window.electronAPI.readStore('scripts.json', []),
-          window.electronAPI.readStore('roles.json', []), // <-- 把 'characters.json' 改成 'roles.json'
+          window.electronAPI.readStore('characters.json', []), // 使用统一的文件名
           window.electronAPI.llmGetServices(),
         ]);
 

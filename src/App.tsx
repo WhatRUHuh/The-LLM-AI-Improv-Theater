@@ -9,7 +9,7 @@ const { Content, Sider } = Layout;
 const menuItems = [
   { key: '/chat-setup', label: '聊天' }, // 默认指向聊天设置
   { key: '/scripts', label: '剧本管理' },
-  { key: '/roles', label: '角色管理' },
+  { key: '/characters', label: '角色管理' },
   { key: '/ai-config', label: 'AI 配置' },
   { key: '/history', label: '历史记录' },
   { key: '/settings', label: '设置' },

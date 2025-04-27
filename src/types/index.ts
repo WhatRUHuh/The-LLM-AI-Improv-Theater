@@ -26,7 +26,7 @@ export interface AICharacter {
  */
 export interface ScriptCharacterRef {
   name: string; // 角色名称
-  role?: string; // 角色在该剧本中的定位或描述 (可选)
+  description?: string; // 角色在该剧本中的定位或描述 (可选)
 }
 
 /**

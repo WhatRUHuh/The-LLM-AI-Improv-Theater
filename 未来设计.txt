@@ -1,0 +1,46 @@
+# 下一步行动计划 (截至 2025-04-27 晚上)
+
+核心目标：**实现聊天界面 (`src/pages/ChatInterfacePage.tsx`) 的核心功能 (优先针对“单人单 AI”模式)**
+
+具体任务：
+
+1.  **接收配置**:
+    *   在 `ChatInterfacePage` 中使用 `useLocation` hook 获取从 `ChatSetupPage` 传递过来的 `chatConfig` state 对象。
+    *   解析 `chatConfig`，获取聊天模式、选定剧本信息、出场角色列表（包含详细信息）、用户扮演的角色 ID、以及 AI 角色的配置（服务商、模型）。
+
+2.  **构建 System Prompt**:
+    *   设计一个函数，根据 `chatConfig` 动态生成 System Prompt。
+    *   Prompt 应包含：
+        *   剧本的整体背景信息（标题、场景、设定、梗概、氛围等）。
+        *   所有出场角色的列表及其关键设定（姓名、身份、性格等）。
+        *   明确指示当前 AI 需要扮演哪个角色，并提供该角色的详细设定。
+        *   如果用户扮演了角色，明确告知 AI 用户的角色身份。
+
+3.  **实现聊天 UI**:
+    *   使用 Ant Design `List` 或其他合适组件渲染聊天记录 `messages` 状态。
+    *   每条消息需要清晰展示发言者的角色名和发言内容。
+    *   根据用户是否扮演角色 (`userCharacterId`)，条件渲染用户输入区域（`Input.TextArea` + 发送 `Button`）。
+    *   考虑添加加载状态（AI 正在思考时显示）。
+    *   考虑聊天记录区域的滚动处理（新消息自动滚动到底部）。
+
+4.  **实现对话逻辑 (单人单 AI)**:
+    *   维护一个 `messages` 状态 (类型为 `LLMChatOptions['messages']`) 存储对话历史。
+    *   **用户发送**:
+        *   获取用户输入文本。
+        *   根据 `userCharacterId` 找到用户扮演的角色名。
+        *   构造消息 `{ role: 'user', content: '角色名: ' + messageText }` 并更新 `messages` 状态。
+        *   触发调用 AI 的逻辑。
+    *   **调用 AI**:
+        *   从 `chatConfig` 中找到 AI 需要扮演的角色 ID 和对应的 AI 配置 (`providerId`, `model`)。
+        *   准备 `LLMChatOptions` 对象，包含完整的 `messages` 历史和构建好的 `systemPrompt`。
+        *   调用 `window.electronAPI.llmGenerateChat(providerId, model, options)`。
+        *   处理 API 调用过程中的加载状态和错误。
+    *   **接收 AI 回复**:
+        *   获取 `llmGenerateChat` 返回的 AI 回复文本。
+        *   找到 AI 扮演的角色名。
+        *   构造消息 `{ role: 'assistant', content: 'AI角色名: ' + aiResponseText }` 并更新 `messages` 状态。
+
+5.  **对话历史存储**:
+    *   确定对话历史文件的命名规则（例如 `chatlog-[scriptId]-[timestamp].json`）。
+    *   在每次 `messages` 状态更新后，调用 `window.electronAPI.writeStore(fileName, messages)` 将其保存到本地文件。
+    *   （可选）在进入 `ChatInterfacePage` 时，检查是否存在对应的历史文件，如果存在则加载并初始化 `messages` 状态。

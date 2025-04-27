@@ -11,19 +11,19 @@ const ScriptEditorPage: React.FC = () => {
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
   const [initialValues, setInitialValues] = useState<Partial<Script>>({});
-  const [allRoles, setAllRoles] = useState<AICharacter[]>([]); // 存储所有角色用于选择
+  const [allCharacters, setAllCharacters] = useState<AICharacter[]>([]); // 存储所有角色用于选择
 
   const isEditMode = !!scriptId;
   const scriptsFileName = 'scripts.json';
-  const rolesFileName = 'roles.json';
+  const rolesFileName = 'characters.json';
 
   // 加载所有角色数据 (用于下拉选择)
-  const loadAllRoles = async () => {
+  const loadAllCharacters = async () => {
     // setLoading(true); // 选择性地为角色加载添加 loading
     try {
       const result = await window.electronAPI.readStore(rolesFileName, [] as AICharacter[]);
       if (result.success && Array.isArray(result.data)) {
-        setAllRoles(result.data);
+        setAllCharacters(result.data);
       } else {
         message.error(`加载角色列表失败: ${result.error || '未知错误'}`);
       }
@@ -36,7 +36,7 @@ const ScriptEditorPage: React.FC = () => {
 
   // 如果是编辑模式，加载现有剧本数据
   useEffect(() => {
-    loadAllRoles(); // 总是需要加载角色列表
+    loadAllCharacters(); // 总是需要加载角色列表
 
     if (isEditMode && scriptId) {
       setLoading(true);
@@ -175,10 +175,10 @@ const ScriptEditorPage: React.FC = () => {
             allowClear
             style={{ width: '100%' }}
             placeholder="请选择参演角色"
-            loading={!allRoles.length && loading} // 角色列表加载中也显示 loading
-            options={allRoles.map(role => ({
-              label: role.name,
-              value: role.id,
+            loading={!allCharacters.length && loading} // 角色列表加载中也显示 loading
+            options={allCharacters.map(character => ({
+              label: character.name,
+              value: character.id,
             }))}
             filterOption={(input, option) =>
               (option?.label ?? '').toLowerCase().includes(input.toLowerCase())

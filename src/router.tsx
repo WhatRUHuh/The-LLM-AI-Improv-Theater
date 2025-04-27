@@ -6,8 +6,8 @@ import ChatModeSelectionPage from './pages/ChatModeSelectionPage'; // <-- 导入
 import ChatSetupPage from './pages/ChatSetupPage';
 import ChatInterfacePage from './pages/ChatInterfacePage';
 import ScriptManagementPage from './pages/ScriptManagementPage';
-import RoleManagementPage from './pages/RoleManagementPage';
-import RoleEditorPage from './pages/RoleEditorPage';
+import CharacterManagementPage from './pages/CharacterManagementPage';
+import CharacterEditorPage from './pages/CharacterEditorPage';
 import ScriptEditorPage from './pages/ScriptEditorPage'; // <-- 导入新的剧本编辑页面
 import AIConfigPage from './pages/AIConfigPage';
 import HistoryPage from './pages/HistoryPage';
@@ -37,9 +37,9 @@ const AppRouter: React.FC = () => {
       <Route path="/scripts/add" element={<ScriptEditorPage />} /> {/* 添加剧本路由 */}
       <Route path="/scripts/edit/:id" element={<ScriptEditorPage />} /> {/* 编辑剧本路由 */}
       {/* 角色管理路由 */}
-      <Route path="/roles" element={<RoleManagementPage />} />
-      <Route path="/roles/add" element={<RoleEditorPage />} /> {/* 添加角色路由 */}
-      <Route path="/roles/edit/:id" element={<RoleEditorPage />} /> {/* 编辑角色路由 */}
+      <Route path="/characters" element={<CharacterManagementPage />} />
+      <Route path="/characters/add" element={<CharacterEditorPage />} /> {/* 添加角色路由 */}
+      <Route path="/characters/edit/:id" element={<CharacterEditorPage />} /> {/* 编辑角色路由 */}
       <Route path="/ai-config" element={<AIConfigPage />} />
       <Route path="/history" element={<HistoryPage />} />
       <Route path="/settings" element={<SettingsPage />} />

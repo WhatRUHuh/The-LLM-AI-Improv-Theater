@@ -8,7 +8,7 @@ import { Script, AICharacter } from '../types';
 
 // columns 不再需要 handleEdit 函数，改为 navigateToEdit
 const columns = (
-  roles: AICharacter[],
+  characters: AICharacter[],
   handleDelete: (id: string) => void,
   navigateToEdit: (id: string) => void // 新增导航到编辑页的函数
 ) => [
@@ -31,8 +31,8 @@ const columns = (
       if (!characterIds || characterIds.length === 0) return '-';
       // 根据 ID 查找角色名称
       const characterNames = characterIds.map(id => {
-        const role = roles.find(r => r.id === id);
-        return role ? role.name : `未知ID(${id.substring(0, 4)}...)`; // 如果找不到角色，显示未知
+        const character = characters.find(r => r.id === id);
+        return character ? character.name : `未知ID(${id.substring(0, 4)}...)`; // 如果找不到角色，显示未知
       }).slice(0, 3); // 最多显示3个
 
       return (
@@ -69,7 +69,7 @@ const columns = (
 const ScriptManagementPage: React.FC = () => {
   const [scripts, setScripts] = useState<Script[]>([]);
   const [loading, setLoading] = useState(false);
-  const [allRoles, setAllRoles] = useState<AICharacter[]>([]); // 仍然需要角色列表来显示名字
+  const [allCharacters, setAllCharacters] = useState<AICharacter[]>([]); // 仍然需要角色列表来显示名字
   const navigate = useNavigate(); // 获取导航函数
 
   // 移除 Modal 相关的状态和 Form hook
@@ -78,14 +78,14 @@ const ScriptManagementPage: React.FC = () => {
   // const [form] = Form.useForm();
 
   const scriptsFileName = 'scripts.json';
-  const rolesFileName = 'roles.json';
+  const rolesFileName = 'characters.json';
 
-  // 加载所有角色数据 (逻辑不变)
-  const loadAllRoles = async () => {
+  // 加载所有角色数据
+  const loadAllCharacters = async () => {
     try {
       const result = await window.electronAPI.readStore(rolesFileName, [] as AICharacter[]);
       if (result.success && Array.isArray(result.data)) {
-        setAllRoles(result.data);
+        setAllCharacters(result.data);
       } else {
         message.error(`加载角色列表失败: ${result.error || '未知错误'}`);
       }
@@ -130,7 +130,7 @@ const ScriptManagementPage: React.FC = () => {
   // 组件加载时读取剧本和角色数据 (逻辑不变)
   useEffect(() => {
     loadScripts();
-    loadAllRoles();
+    loadAllCharacters();
   }, []);
 
   // 移除 showModal, handleOk, handleCancel 函数
@@ -159,9 +159,9 @@ const ScriptManagementPage: React.FC = () => {
         添加剧本
       </Button>
       <Table
-        columns={columns(allRoles, handleDelete, navigateToEdit)} // 传入角色列表、删除和导航函数
+        columns={columns(allCharacters, handleDelete, navigateToEdit)} // 传入角色列表、删除和导航函数
         dataSource={scripts}
-        loading={loading || !allRoles.length} // 角色列表加载中也显示 loading
+        loading={loading || !allCharacters.length} // 角色列表加载中也显示 loading
         rowKey="id"
         pagination={false}
       />

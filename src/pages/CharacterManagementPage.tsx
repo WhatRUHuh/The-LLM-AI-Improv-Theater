@@ -57,8 +57,8 @@ const columns = (
   },
 ];
 
-const RoleManagementPage: React.FC = () => {
-  const [roles, setRoles] = useState<AICharacter[]>([]);
+const CharacterManagementPage: React.FC = () => {
+  const [characters, setCharacters] = useState<AICharacter[]>([]);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate(); // 获取导航函数
 
@@ -67,68 +67,68 @@ const RoleManagementPage: React.FC = () => {
   // const [editingRole, setEditingRole] = useState<AICharacter | null>(null);
   // const [form] = Form.useForm();
 
-  const rolesFileName = 'roles.json';
+  const rolesFileName = 'characters.json'; // 使用统一的文件名
 
-  // 加载角色数据 (逻辑不变)
-  const loadRoles = async () => {
+  // 加载角色数据
+  const loadCharacters = async () => {
     setLoading(true);
     try {
       // 注意：window.electronAPI 是在 preload.ts 中暴露的
       const result = await window.electronAPI.readStore(rolesFileName, [] as AICharacter[]);
       if (result.success && Array.isArray(result.data)) {
-        setRoles(result.data);
+        setCharacters(result.data);
       } else {
         message.error(`加载角色失败: ${result.error || '未知错误'}`);
-        setRoles([]); // 出错时清空
+        setCharacters([]); // 出错时清空
       }
     } catch (error) {
       message.error(`调用读取存储时出错: ${error}`);
-      setRoles([]); // 出错时清空
+      setCharacters([]); // 出错时清空
     } finally {
       setLoading(false);
     }
   };
 
   // 保存角色数据
-  const saveRoles = async (updatedRoles: AICharacter[]) => {
-    console.log('[RoleManagementPage] Attempting to save roles:', updatedRoles); // <-- 添加日志
+  const saveCharacters = async (updatedCharacters: AICharacter[]) => {
+    console.log('[CharacterManagementPage] Attempting to save characters:', updatedCharacters); // <-- 添加日志
     try {
       // 调用后台写入存储
-      const result = await window.electronAPI.writeStore(rolesFileName, updatedRoles);
-      console.log('[RoleManagementPage] writeStore result:', result); // <-- 添加日志
+      const result = await window.electronAPI.writeStore(rolesFileName, updatedCharacters);
+      console.log('[CharacterManagementPage] writeStore result:', result); // <-- 添加日志
       if (!result.success) {
         message.error(`保存角色失败: ${result.error || '未知错误'}`);
       } else {
        // message.success('角色已保存'); // 可以选择性提示
-       setRoles(updatedRoles); // 更新本地状态
+       setCharacters(updatedCharacters); // 更新本地状态
       }
     } catch (error) {
-      console.error('[RoleManagementPage] Error calling writeStore:', error); // <-- 修改为 console.error
+      console.error('[CharacterManagementPage] Error calling writeStore:', error); // <-- 修改为 console.error
       message.error(`调用写入存储时出错: ${error instanceof Error ? error.message : String(error)}`);
     }
   };
 
   // 组件加载时读取数据 (逻辑不变)
   useEffect(() => {
-    loadRoles();
+    loadCharacters();
   }, []);
 
   // 移除 showModal, handleOk, handleCancel 函数
 
   // 跳转到添加页面
   const navigateToAdd = () => {
-    navigate('/roles/add');
+    navigate('/characters/add');
   };
 
   // 跳转到编辑页面
   const navigateToEdit = (id: string) => {
-    navigate(`/roles/edit/${id}`);
+    navigate(`/characters/edit/${id}`);
   };
 
   // 处理删除 (逻辑不变)
   const handleDelete = (id: string) => {
-    const updatedRoles = roles.filter(role => role.id !== id);
-    saveRoles(updatedRoles);
+    const updatedCharacters = characters.filter(character => character.id !== id);
+    saveCharacters(updatedCharacters);
     message.success('角色已删除');
   };
 
@@ -140,7 +140,7 @@ const RoleManagementPage: React.FC = () => {
       </Button>
       <Table
         columns={columns(handleDelete, navigateToEdit)} // 传入删除和导航到编辑页的函数
-        dataSource={roles}
+        dataSource={characters}
         loading={loading}
         rowKey="id"
         pagination={false}
@@ -150,4 +150,4 @@ const RoleManagementPage: React.FC = () => {
   );
 };
 
-export default RoleManagementPage;
+export default CharacterManagementPage;
