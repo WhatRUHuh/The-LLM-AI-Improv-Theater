@@ -2,4 +2,4 @@ import "electron";
 import "node:path";
 import "node:fs";
 import "node:url";
-import "./main-KzliGheN.js";
+import "./main-DzSTav58.js";

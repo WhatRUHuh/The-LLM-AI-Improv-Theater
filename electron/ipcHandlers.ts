@@ -1,5 +1,6 @@
 import { ipcMain } from 'electron';
 import { readStore, writeStore } from './storage/jsonStore'; // 导入存储函数
+import { LLMChatOptions, LLMResponse } from './llm/BaseLLM'; // <-- 导入 LLM 类型
 
 /**
  * 注册与数据存储相关的 IPC 处理程序。
@@ -140,6 +141,36 @@ export function registerLLMServiceHandlers(): void { // <-- 确保导出
    });
 
 
+// 新增：处理聊天生成请求
+   // 需要从 BaseLLM 导入 LLMChatOptions 和 LLMResponse 类型
+   // (确保在文件顶部添加: import { LLMChatOptions, LLMResponse } from './llm/BaseLLM';)
+   ipcMain.handle('llm-generate-chat', async (event, providerId: string, options: LLMChatOptions): Promise<{ success: boolean; data?: LLMResponse; error?: string }> => {
+     console.log(`[IPC Main] Received llm-generate-chat for ${providerId} with options:`, JSON.stringify(options, null, 2));
+     const service = llmServiceManager.getService(providerId);
+     if (!service) {
+       return { success: false, error: `未找到服务商: ${providerId}` };
+     }
+     // 检查 API Key 是否已设置 (虽然 generateChatCompletion 内部也会检查，但这里可以提前返回错误)
+     if (!service.getApiKey()) {
+        return { success: false, error: `服务商 ${providerId} 的 API Key 尚未设置` };
+     }
+
+     try {
+       // TODO: 在调用前可能需要验证 options 的结构是否符合 LLMChatOptions (虽然 TS 类型已约束)
+       const result: LLMResponse = await service.generateChatCompletion(options);
+       console.log(`[IPC Main] Chat completion result for ${providerId}:`, JSON.stringify(result, null, 2));
+       // 直接返回服务层的结果，它应该已经是 LLMResponse 格式 { content: ..., error: ... }
+       // 如果服务层返回了错误，也包含在 result.error 中
+       if (result.error) {
+          return { success: false, error: result.error, data: result }; // 即使失败也返回 data 供调试
+       }
+       return { success: true, data: result };
+     } catch (error: unknown) {
+       const message = error instanceof Error ? error.message : '调用聊天生成时发生未知错误';
+       console.error(`[IPC Main] Error handling llm-generate-chat for ${providerId}:`, error);
+       return { success: false, error: message };
+     }
+   });
   console.log('LLM Service IPC handlers registered.');
 }
 

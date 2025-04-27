@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
+import type { LLMChatOptions, LLMResponse } from './llm/BaseLLM'; // <-- 导入 LLM 类型 (使用 type-only import)
 
 // --------- 向渲染进程暴露选择性的 API ---------
 contextBridge.exposeInMainWorld('electronAPI', { // 使用不同的键名，避免覆盖可能存在的其他 ipcRenderer 暴露
@@ -19,6 +20,11 @@ contextBridge.exposeInMainWorld('electronAPI', { // 使用不同的键名，避�
   // 新增获取已保存 Keys 的 API
   llmGetSavedKeys: (): Promise<{ success: boolean; data?: Record<string, string | null>; error?: string }> =>
     ipcRenderer.invoke('llm-get-saved-keys'),
+// 新增：调用聊天生成 API
+   // 需要在调用处确保 options 符合 LLMChatOptions 结构 (从 './llm/BaseLLM' 导入)
+   // 返回值 data 符合 LLMResponse 结构
+   llmGenerateChat: (providerId: string, options: LLMChatOptions): Promise<{ success: boolean; data?: LLMResponse; error?: string }> =>
+     ipcRenderer.invoke('llm-generate-chat', providerId, options),
 
   // 如果还需要通用的 on/off/send，可以在这里单独暴露，或者按需添加
   // on: (channel, listener) => { /* ... 安全实现 ... */ },

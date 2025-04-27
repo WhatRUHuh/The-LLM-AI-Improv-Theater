@@ -3,6 +3,8 @@
 // import path from 'path';
 import { BaseLLM } from './BaseLLM';
 import { OpenAILLM } from './OpenAI';
+import { AnthropicLLM } from './AnthropicLLM'; // <-- 导入 Anthropic
+import { GoogleLLM } from './GoogleLLM';     // <-- 导入 Google
 
 /**
  * 管理所有已发现和实例化的 LLM 服务提供商。
@@ -30,16 +32,31 @@ class LLMServiceManager {
        console.error('[LLM Manager] Error instantiating OpenAI service:', error);
     }
 
-    // --- 手动注册其他服务商 (未来添加) ---
-    // try {
-    //   const anthropicService = new AnthropicLLM(); // 假设有 AnthropicLLM 类
-    //   if (anthropicService.providerId) {
-    //     this.services.set(anthropicService.providerId, anthropicService);
-    //     console.log(`[LLM Manager] Manually registered provider: ${anthropicService.providerId} (${anthropicService.providerName})`);
-    //   }
-    // } catch (error) {
-    //    console.error('[LLM Manager] Error instantiating Anthropic service:', error);
-    // }
+    // --- 手动注册 Anthropic ---
+    try {
+      const anthropicService = new AnthropicLLM();
+      if (anthropicService.providerId) {
+        this.services.set(anthropicService.providerId, anthropicService);
+        console.log(`[LLM Manager] Manually registered provider: ${anthropicService.providerId} (${anthropicService.providerName})`);
+      } else {
+         console.error('[LLM Manager] Failed to register Anthropic: Missing providerId.');
+      }
+    } catch (error) {
+       console.error('[LLM Manager] Error instantiating Anthropic service:', error);
+    }
+
+    // --- 手动注册 Google ---
+    try {
+      const googleService = new GoogleLLM();
+      if (googleService.providerId) {
+        this.services.set(googleService.providerId, googleService);
+        console.log(`[LLM Manager] Manually registered provider: ${googleService.providerId} (${googleService.providerName})`);
+      } else {
+         console.error('[LLM Manager] Failed to register Google: Missing providerId.');
+      }
+    } catch (error) {
+       console.error('[LLM Manager] Error instantiating Google service:', error);
+    }
 
     console.log(`[LLM Manager] Initialization complete. Loaded providers: ${[...this.services.keys()].join(', ')}`);
   }
