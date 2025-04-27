@@ -6,8 +6,7 @@ const SettingsPage: React.FC = () => {
   const [form] = Form.useForm<ProxyConfig>(); // 创建表单实例，并指定类型
   const [loading, setLoading] = useState(true); // 加载状态
   const [saving, setSaving] = useState(false); // 保存状态
-  // 使用 form.getFieldValue('mode') !== 'none' 来动态判断代理是否启用，减少一个 state
-  // const [proxyEnabled, setProxyEnabled] = useState(false);
+  const [isProxySwitchOn, setIsProxySwitchOn] = useState(false); // <-- 新增：独立状态控制 Switch
 
   // 加载当前代理配置
   const loadProxyConfig = useCallback(async () => {
@@ -19,15 +18,19 @@ const SettingsPage: React.FC = () => {
         console.log('[SettingsPage] Loaded proxy config:', result.data);
         // 使用加载的配置设置表单初始值
         form.setFieldsValue(result.data);
+        // 根据加载的 mode 设置 Switch 的初始状态
+        setIsProxySwitchOn(result.data.mode !== 'none');
       } else {
         message.error(`加载代理配置失败: ${result.error || '未知错误'}`);
         // 加载失败，默认禁用代理
         form.setFieldsValue({ mode: 'none', url: '' });
+        setIsProxySwitchOn(false); // <-- 加载失败时关闭 Switch
       }
     } catch (error: unknown) {
       const errorMsg = error instanceof Error ? error.message : String(error);
       message.error(`调用获取代理配置时出错: ${errorMsg}`);
       form.setFieldsValue({ mode: 'none', url: '' });
+      setIsProxySwitchOn(false); // <-- 出错时关闭 Switch
     } finally {
       setLoading(false);
     }
@@ -41,8 +44,11 @@ const SettingsPage: React.FC = () => {
   const handleSave = async (values: ProxyConfig) => {
     setSaving(true);
     try {
-      // 直接使用表单提交的值，因为 mode 会根据 Switch 状态被正确设置
-      const configToSave: ProxyConfig = values;
+      // 根据 Switch 状态决定最终要保存的 mode
+      const configToSave: ProxyConfig = {
+        ...values, // 获取表单中的 url 等
+        mode: isProxySwitchOn ? values.mode : 'none', // 如果开关关了，强制 mode 为 none
+      };
 
       // 如果模式是自定义，但 URL 为空，则提示错误
       if (configToSave.mode === 'custom' && !configToSave.url?.trim()) {
@@ -67,27 +73,33 @@ const SettingsPage: React.FC = () => {
     }
   };
 
-  // 处理代理开关变化 (直接修改 form 的 mode 值)
-  const onProxyEnabledChange = (checked: boolean) => {
-    if (!checked) {
-      form.setFieldsValue({ mode: 'none' });
-    } else {
-      // 如果打开时当前模式是 none，则默认为 system
-      if (form.getFieldValue('mode') === 'none') {
-         form.setFieldsValue({ mode: 'system' });
-      }
-      // 如果打开时已经是 system 或 custom，则保持不变
-    }
-    // 强制重新渲染以更新依赖 currentMode 的 UI
-    forceUpdate({});
+  // 处理代理开关变化 (只更新 Switch 状态)
+  const onProxySwitchChange = (checked: boolean) => {
+    setIsProxySwitchOn(checked);
   };
+
+  // 使用 useEffect 来根据 Switch 状态更新 Form 的 mode 值
+  useEffect(() => {
+    // 仅在非加载状态下执行，避免覆盖初始加载的值
+    if (!loading) {
+      if (!isProxySwitchOn) {
+        // 如果开关关闭，设置 mode 为 'none'
+        if (form.getFieldValue('mode') !== 'none') {
+           form.setFieldsValue({ mode: 'none' });
+        }
+      } else {
+        // 如果开关打开，且当前 mode 是 'none'，则默认设为 'system'
+        if (form.getFieldValue('mode') === 'none') {
+           form.setFieldsValue({ mode: 'system' });
+        }
+        // 如果已经是 'system' 或 'custom'，则保持不变
+      }
+    }
+  }, [isProxySwitchOn, form, loading]); // 依赖开关状态、form 实例和加载状态
 
   // 获取当前选择的代理模式，用于条件渲染自定义 URL 输入框
   const currentMode = Form.useWatch('mode', form);
-  const proxyEnabled = currentMode !== 'none'; // 根据 mode 判断是否启用
-
-  // 用于强制刷新 UI 以响应 Switch 变化带来的 mode 变化
-  const [, forceUpdate] = useState({});
+  // const proxyEnabled = currentMode !== 'none'; // 不再需要这个，直接用 isProxySwitchOn
 
   return (
     <div>
@@ -111,19 +123,19 @@ const SettingsPage: React.FC = () => {
            />
 
           <Form.Item label="启用网络代理" valuePropName="checked">
-             {/* 这个 Switch 直接控制 mode 的值 */}
-             <Switch checked={proxyEnabled} onChange={onProxyEnabledChange} />
+             {/* Switch 绑定到独立的 isProxySwitchOn state */}
+             <Switch checked={isProxySwitchOn} onChange={onProxySwitchChange} />
           </Form.Item>
 
-          {/* 仅在代理启用时显示模式选择和自定义 URL */}
-          {proxyEnabled && (
+          {/* 仅在代理启用 (isProxySwitchOn 为 true) 时显示模式选择和自定义 URL */}
+          {isProxySwitchOn && (
             <>
               <Form.Item
                 label="代理模式"
                 name="mode"
-                rules={[{ required: true, message: '请选择代理模式' }]}
+                // rules 不再需要，因为 mode 会根据 Switch 自动设置
               >
-                <Radio.Group onChange={() => forceUpdate({})}> {/* 切换模式时也强制刷新 */}
+                <Radio.Group> {/* 移除 onChange */}
                   <Radio value="system">使用系统代理</Radio>
                   <Radio value="custom">自定义代理</Radio>
                 </Radio.Group>

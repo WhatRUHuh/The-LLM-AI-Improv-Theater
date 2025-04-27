@@ -18,7 +18,11 @@ electron.contextBridge.exposeInMainWorld("electronAPI", {
   llmGenerateChat: (providerId, options) => electron.ipcRenderer.invoke("llm-generate-chat", providerId, options),
   // 新增：获取和保存自定义模型列表
   llmGetCustomModels: (providerId) => electron.ipcRenderer.invoke("llm-get-custom-models", providerId),
-  llmSaveCustomModels: (providerId, models) => electron.ipcRenderer.invoke("llm-save-custom-models", providerId, models)
+  llmSaveCustomModels: (providerId, models) => electron.ipcRenderer.invoke("llm-save-custom-models", providerId, models),
+  // 新增：获取和设置代理配置
+  // 需要在 proxyManager.ts 中导入 ProxyConfig 类型并在下方使用
+  proxyGetConfig: () => electron.ipcRenderer.invoke("proxy-get-config"),
+  proxySetConfig: (newConfig) => electron.ipcRenderer.invoke("proxy-set-config", newConfig)
   // 如果还需要通用的 on/off/send，可以在这里单独暴露，或者按需添加
   // on: (channel, listener) => { /* ... 安全实现 ... */ },
   // send: (channel, data) => { /* ... 安全实现 ... */ },
