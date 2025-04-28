@@ -10,8 +10,9 @@ declare global {
       // --- Generic Store API (for config, chat history etc.) ---
       readStore: (fileName: string, defaultValue: unknown) => Promise<{ success: boolean; data?: unknown; error?: string }>;
       writeStore: (fileName: string, data: unknown) => Promise<{ success: boolean; error?: string }>;
-      listChatSessions: () => Promise<{ success: boolean; data?: string[]; error?: string }>;
-      deleteChatSession: (fileName: string) => Promise<{ success: boolean; error?: string }>;
+      listChatSessions: () => Promise<{ success: boolean; data?: string[]; error?: string }>; // Lists files in 'chats' dir
+      deleteChatSession: (fileName: string) => Promise<{ success: boolean; error?: string }>; // Deletes file in 'chats' dir
+      saveChatSession: (sessionId: string, data: ChatPageStateSnapshot) => Promise<{ success: boolean; error?: string }>; // Saves file to 'chats' dir <-- 新增类型定义
 
       // --- Character Data API ---
       listCharacters: () => Promise<{ success: boolean; data?: AICharacter[]; error?: string }>;

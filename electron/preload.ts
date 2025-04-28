@@ -19,6 +19,10 @@ contextBridge.exposeInMainWorld('electronAPI', { // 使用不同的键名，避�
   deleteChatSession: (fileName: string): Promise<{ success: boolean; error?: string }> =>
     ipcRenderer.invoke('delete-chat-session', fileName),
 
+  // --- Chat Session API (Save only, List/Delete/Read via Store API) ---
+  saveChatSession: (sessionId: string, data: unknown): Promise<{ success: boolean; error?: string }> => // <-- 新增保存聊天会话 API
+    ipcRenderer.invoke('save-chat-session', sessionId, data),
+
   // --- Character Data API ---
   listCharacters: (): Promise<{ success: boolean; data?: AICharacter[]; error?: string }> =>
     ipcRenderer.invoke('list-characters'),

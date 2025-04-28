@@ -199,7 +199,8 @@ prompt += `\n与你对话的是由人类用户扮演的角色: **${userChar.name
                systemPrompt, // 保存当前的系统提示
                chatSessionId, // 保存当前的会话 ID
            };
-           window.electronAPI.writeStore(`${chatSessionId}.json`, snapshotToSave) // 保存整个快照对象
+           // 使用新的 saveChatSession API，传入 sessionId 和快照数据
+           window.electronAPI.saveChatSession(chatSessionId, snapshotToSave)
              .catch(err => message.error(`保存对话历史失败: ${err}`));
         }
       } else {
@@ -245,7 +246,8 @@ prompt += `\n与你对话的是由人类用户扮演的角色: **${userChar.name
            systemPrompt, // 保存当前的系统提示
            chatSessionId, // 保存当前的会话 ID
        };
-       window.electronAPI.writeStore(`${chatSessionId}.json`, snapshotToSave) // 保存整个快照对象
+       // 使用新的 saveChatSession API
+       window.electronAPI.saveChatSession(chatSessionId, snapshotToSave)
          .catch(err => message.error(`保存对话历史失败: ${err}`));
     }
 

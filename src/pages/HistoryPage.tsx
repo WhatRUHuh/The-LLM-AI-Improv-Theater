@@ -52,9 +52,12 @@ const HistoryPage: React.FC = () => {
           return;
         }
 
-        // 并行读取所有文件内容
+        // 并行读取所有文件内容 (现在需要读取 chats 目录下的文件)
         const readPromises = fileNames.map(async (fileName) => {
-          const readResult = await window.electronAPI.readStore(fileName, null);
+          // 构建相对路径 'chats/fileName'
+          const relativePath = `chats/${fileName}`;
+          console.log(`[HistoryPage] Reading file: ${relativePath}`);
+          const readResult = await window.electronAPI.readStore(relativePath, null); // <-- 使用相对路径读取
           if (readResult.success && readResult.data) {
             try {
               // 假设文件内容是 ChatPageStateSnapshot
@@ -109,7 +112,10 @@ const HistoryPage: React.FC = () => {
 
   // 处理删除操作
   const handleDelete = async (fileName: string) => {
+    // 删除时也需要确保操作的是 chats 目录下的文件
+    console.log(`[HistoryPage] Deleting file: ${fileName}`);
     try {
+      // deleteChatSession 内部已经处理了 chats 目录，直接传文件名即可
       const deleteResult = await window.electronAPI.deleteChatSession(fileName);
       if (deleteResult.success) {
         message.success(`历史记录 ${fileName} 已删除`);

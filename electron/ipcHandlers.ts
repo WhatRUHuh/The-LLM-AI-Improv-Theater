@@ -1,31 +1,32 @@
-import { ipcMain } from 'electron';
-import fs from 'fs/promises'; // 需要 fs 来列出和删除文件
-import path from 'path'; // 需要 path 来处理路径
-import { app } from 'electron'; // 需要 app 来获取存储目录
-import { readStore, writeStore } from './storage/jsonStore'; // 导入存储函数
-import { LLMChatOptions, LLMResponse } from './llm/BaseLLM'; // <-- 导入 LLM 类型
-import { llmServiceManager } from './llm/LLMServiceManager'; // 导入 LLM 服务管理器
-import { proxyManager, ProxyConfig } from './ProxyManager'; // 导入代理管理器
-import { getSystemProxy } from 'os-proxy-config'; // 导入系统代理获取函数
+import { ipcMain, app } from 'electron'; // 合并导入
+import fs from 'fs/promises';
+import path from 'path';
+import { readStore, writeStore } from './storage/jsonStore';
+import { LLMChatOptions, LLMResponse } from './llm/BaseLLM';
+import { llmServiceManager } from './llm/LLMServiceManager';
+import { proxyManager, ProxyConfig } from './ProxyManager';
+import { getSystemProxy } from 'os-proxy-config';
 // 导入你的角色和剧本类型 (假设在 ../src/types)
 import type { AICharacter, Script } from '../src/types';
+// 导入聊天快照类型
+import type { ChatPageStateSnapshot } from '../src/types';
 
 // --- 文件名/目录常量 ---
 const API_KEYS_FILE = 'apiKeys.json';
 const CUSTOM_MODELS_FILE = 'customModels.json';
 const PROXY_CONFIG_FILE = 'proxyConfig.json';
-// const SCRIPTS_FILE = 'scripts.json'; // <-- 不再需要这个了
-// const CHARACTERS_FILE = 'characters.json'; // <-- 也不再需要了
-const KNOWN_CONFIG_FILES = new Set([API_KEYS_FILE, CUSTOM_MODELS_FILE, PROXY_CONFIG_FILE]); // 更新已知配置文件列表
+const KNOWN_CONFIG_FILES = new Set([API_KEYS_FILE, CUSTOM_MODELS_FILE, PROXY_CONFIG_FILE]);
 
 const STORAGE_DIR_NAME = 'TheLLMAIImprovTheaterData';
 const CHARACTERS_DIR_NAME = 'characters';
 const SCRIPTS_DIR_NAME = 'scripts';
+const CHATS_DIR_NAME = 'chats'; // <-- 新增聊天记录文件夹名称
 
 // --- 辅助函数 ---
 const getStorageDir = () => path.join(app.getPath('userData'), STORAGE_DIR_NAME);
 const getCharactersDir = () => path.join(getStorageDir(), CHARACTERS_DIR_NAME);
 const getScriptsDir = () => path.join(getStorageDir(), SCRIPTS_DIR_NAME);
+const getChatsDir = () => path.join(getStorageDir(), CHATS_DIR_NAME); // <-- 新增获取聊天记录目录函数
 
 // 文件名清理函数 (移除或替换非法字符)
 function sanitizeFilename(name: string): string {
@@ -65,43 +66,64 @@ async function ensureDirExists(dirPath: string): Promise<void> {
 type CustomModelsStore = Record<string, string[]>;
 
 /**
- * 注册与数据存储相关的 IPC 处理程序。
+ * 注册与通用数据存储相关的 IPC 处理程序 (主要用于配置文件和读取聊天记录)。
  */
 export function registerStoreHandlers(): void {
-  // 处理读取存储请求
-  ipcMain.handle('read-store', async (event, fileName: string, defaultValue: unknown) => {
-    console.log(`[IPC Handler] Received 'read-store' for ${fileName}`);
-    // 安全检查：阻止通过此通用接口读取角色/剧本目录下的文件
-    const requestedPath = path.join(getStorageDir(), fileName);
+  // 处理读取存储请求 (可读取根目录和 chats 目录)
+  ipcMain.handle('read-store', async (event, relativePath: string, defaultValue: unknown) => {
+    console.log(`[IPC Handler] Received 'read-store' for ${relativePath}`);
+    // 安全检查：阻止通过此接口读取角色/剧本目录下的文件
+    const requestedPath = path.join(getStorageDir(), relativePath);
     const charactersDir = getCharactersDir();
     const scriptsDir = getScriptsDir();
     if (requestedPath.startsWith(charactersDir) || requestedPath.startsWith(scriptsDir)) {
-        console.error(`[IPC Handler] Attempted to read from restricted directory via read-store: ${fileName}`);
+        console.error(`[IPC Handler] Attempted to read from restricted directory via read-store: ${relativePath}`);
         return { success: false, error: '不允许通过此接口访问角色或剧本文件' };
     }
+    // 允许读取 chats 目录下的文件
+    const chatsDir = getChatsDir();
+    if (!requestedPath.startsWith(getStorageDir()) || requestedPath.startsWith(chatsDir)) {
+        // 如果路径不在存储根目录下，或者在 chats 目录下，则允许读取
+        // (注意: readStore 内部会处理路径拼接，所以这里传相对路径即可)
+    } else if (KNOWN_CONFIG_FILES.has(path.basename(relativePath))) {
+        // 如果是根目录下的已知配置文件，也允许读取
+    } else {
+        // 其他情况（如尝试读取根目录下非配置的未知文件）则阻止
+        console.error(`[IPC Handler] Attempted to read potentially unsafe path via read-store: ${relativePath}`);
+        return { success: false, error: '不允许读取此路径的文件' };
+    }
+
 
     try {
-      const data = await readStore(fileName, defaultValue); // readStore 内部会处理路径拼接
-      console.log(`[IPC Handler] readStore for ${fileName} successful.`);
+      // readStore 现在需要能处理相对于 storageDir 的路径，包括子目录
+      const data = await readStore(relativePath, defaultValue);
+      console.log(`[IPC Handler] readStore for ${relativePath} successful.`);
       return { success: true, data };
     } catch (error: unknown) {
-      console.error(`IPC error handling read-store for ${fileName}:`, error);
+      console.error(`IPC error handling read-store for ${relativePath}:`, error);
       const message = error instanceof Error ? error.message : '读取存储时发生未知错误';
       return { success: false, error: message };
     }
   });
 
-  // 处理写入存储请求
+  // 处理写入存储请求 (仅限根目录的配置文件)
   ipcMain.handle('write-store', async (event, fileName: string, data: unknown) => {
     console.log(`[IPC Handler] Received 'write-store' for ${fileName}`);
-     // 安全检查：阻止通过此通用接口写入角色/剧本目录下的文件
+     // 安全检查：只允许写入根目录下的已知配置文件
      const requestedPath = path.join(getStorageDir(), fileName);
      const charactersDir = getCharactersDir();
      const scriptsDir = getScriptsDir();
-     if (requestedPath.startsWith(charactersDir) || requestedPath.startsWith(scriptsDir)) {
+     const chatsDir = getChatsDir();
+
+     if (requestedPath.startsWith(charactersDir) || requestedPath.startsWith(scriptsDir) || requestedPath.startsWith(chatsDir)) {
          console.error(`[IPC Handler] Attempted to write to restricted directory via write-store: ${fileName}`);
-         return { success: false, error: '不允许通过此接口写入角色或剧本文件' };
+         return { success: false, error: '不允许通过此接口写入角色、剧本或聊天记录文件' };
      }
+     if (!KNOWN_CONFIG_FILES.has(fileName)) {
+         console.error(`[IPC Handler] Attempted to write unknown file via write-store: ${fileName}`);
+         return { success: false, error: '只允许通过此接口写入已知配置文件' };
+     }
+
      console.log(`[IPC Handler] Data to write for ${fileName}:`, JSON.stringify(data).substring(0, 200) + '...'); // Log truncated data
 
     try {
@@ -116,51 +138,48 @@ export function registerStoreHandlers(): void {
   });
 
 
-  // 处理列出聊天会话文件请求
+  // 处理列出聊天会话文件请求 (读取 chats 目录)
   ipcMain.handle('list-chat-sessions', async () => {
-    console.log('[IPC Handler] Received list-chat-sessions');
-    const storageDir = getStorageDir();
+    console.log(`[IPC Handler] Received 'list-chat-sessions'`);
+    const chatsDir = getChatsDir(); // <-- 改为读取 chats 目录
+    console.log(`[IPC Handler] Listing sessions in: ${chatsDir}`);
     try {
-      // 确保目录存在，虽然 read/write 也会确保，但这里单独列出文件前检查更稳妥
-      try {
-        await fs.access(storageDir);
-      } catch (accessError: unknown) {
-        // 如果目录不存在，直接返回空列表
-        if (accessError && typeof accessError === 'object' && 'code' in accessError && accessError.code === 'ENOENT') {
-          console.log('[IPC Handler] Storage directory does not exist, returning empty list.');
-          return { success: true, data: [] };
-        }
-        throw accessError; // 其他访问错误则抛出
-      }
-
-      const files = await fs.readdir(storageDir);
-      // 过滤出 .json 文件，并排除已知的配置文件 (使用更新后的 KNOWN_CONFIG_FILES)
-      const sessionFiles = files.filter(file => file.endsWith('.json') && !KNOWN_CONFIG_FILES.has(file));
-      console.log('[IPC Handler] Found session files:', sessionFiles);
+      await ensureDirExists(chatsDir); // <-- 确保 chats 目录存在
+      const files = await fs.readdir(chatsDir);
+      // 只返回 .json 文件
+      const sessionFiles = files.filter(file => file.endsWith('.json'));
+      console.log('[IPC Handler] Found session files in chats dir:', sessionFiles);
       return { success: true, data: sessionFiles };
     } catch (error: unknown) {
       console.error('[IPC Handler] Error handling list-chat-sessions:', error);
+      // 如果目录不存在，也返回空列表
+      if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') {
+          console.log('[IPC Handler] Chats directory does not exist, returning empty list.');
+          return { success: true, data: [] };
+      }
       const message = error instanceof Error ? error.message : '列出聊天记录时发生未知错误';
       return { success: false, error: message };
     }
   });
 
-  // 处理删除聊天会话文件请求
+  // 处理删除聊天会话文件请求 (在 chats 目录操作)
   ipcMain.handle('delete-chat-session', async (event, fileName: string) => {
     console.log(`[IPC Handler] Received delete-chat-session for ${fileName}`);
     // 安全校验：确保文件名是合法的，并且只包含字母、数字、连字符和点
-    if (!fileName || !/^[a-zA-Z0-9\-.]+$/.test(fileName) || !fileName.endsWith('.json')) {
+    // 注意：这里允许 .json 后缀
+    if (!fileName || !/^[a-zA-Z0-9\-.]+\.json$/.test(fileName) || fileName === '.' || fileName === '..') {
         console.error(`[IPC Handler] Invalid or potentially unsafe filename for deletion: ${fileName}`);
         return { success: false, error: '无效的文件名' };
     }
-    // 再次确认不是要删除关键配置文件 (使用更新后的 KNOWN_CONFIG_FILES)
-     if (KNOWN_CONFIG_FILES.has(fileName)) {
-        console.error(`[IPC Handler] Attempted to delete a known config file: ${fileName}`);
-        return { success: false, error: '不能删除核心配置文件' };
+     // 安全检查：确保不会尝试删除 chats 目录之外的文件 (虽然正则已经限制，双重保险)
+     if (fileName.includes('/') || fileName.includes('\\')) {
+        console.error(`[IPC Handler] Attempted to delete potentially unsafe path: ${fileName}`);
+        return { success: false, error: '无效的文件路径' };
      }
 
-    const storageDir = getStorageDir();
-    const filePath = path.join(storageDir, fileName);
+    const chatsDir = getChatsDir(); // <-- 改为 chats 目录
+    const filePath = path.join(chatsDir, fileName); // <-- 拼接 chats 目录路径
+    console.log(`[IPC Handler] Deleting chat session file: ${filePath}`);
 
     try {
       await fs.unlink(filePath); // 删除文件
@@ -179,7 +198,50 @@ export function registerStoreHandlers(): void {
   });
 
 
-  console.log('Generic Store IPC handlers registered.');
+  console.log('Generic Store IPC handlers registered (readStore, writeStore for config, list/delete chat sessions).');
+}
+
+
+/**
+ * 注册与聊天会话存储相关的 IPC 处理程序 (仅包含保存)
+ */
+export function registerChatSessionHandlers(): void {
+  const chatsDir = getChatsDir();
+
+  // 保存聊天会话 (新增)
+  // 参数: sessionId (不含 .json), data (ChatPageStateSnapshot)
+  ipcMain.handle('save-chat-session', async (event, sessionId: string, data: ChatPageStateSnapshot) => { // <-- 添加 data 类型
+    console.log(`[IPC Handler] Received 'save-chat-session' for ID: ${sessionId}`);
+    // 安全校验：确保 sessionId 是合法的，并且只包含字母、数字、连字符
+    // 移除非必要的转义符
+    if (!sessionId || !/^[a-zA-Z0-9-]+$/.test(sessionId)) {
+        console.error(`[IPC Handler] Invalid or potentially unsafe session ID for saving: ${sessionId}`);
+        return { success: false, error: '无效的会话 ID' };
+    }
+    // 校验传入的数据是否包含 mode (虽然 TS 会检查，但运行时也校验一下)
+    if (!data || !data.chatConfig || !data.chatConfig.mode) {
+        console.error(`[IPC Handler] Invalid data for saving chat session ${sessionId}: Missing mode.`);
+        return { success: false, error: '保存的数据缺少聊天模式信息' };
+    }
+
+    const fileName = `${sessionId}.json`;
+    const filePath = path.join(chatsDir, fileName);
+    console.log(`[IPC Handler] Saving chat session to: ${filePath}`);
+    console.log(`[IPC Handler] Data to save for ${fileName}:`, JSON.stringify(data).substring(0, 200) + '...'); // Log truncated data
+
+    try {
+      await ensureDirExists(chatsDir); // 确保目录存在
+      await fs.writeFile(filePath, JSON.stringify(data, null, 2), 'utf-8'); // 使用格式化写入
+      console.log(`[IPC Handler] Chat session ${fileName} saved successfully.`);
+      return { success: true };
+    } catch (error: unknown) {
+      console.error(`[IPC Handler] Error handling save-chat-session for ${sessionId}:`, error);
+      const message = error instanceof Error ? error.message : '保存聊天会话时发生未知错误';
+      return { success: false, error: message };
+    }
+  });
+
+  console.log('Chat Session IPC handlers registered (save-chat-session).');
 }
 
 /**
@@ -218,6 +280,11 @@ export function registerCharacterHandlers(): void {
       return { success: true, data: characters };
     } catch (error: unknown) {
       console.error('[IPC Handler] Error handling list-characters:', error);
+      // 如果目录不存在，也返回空列表
+      if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') {
+          console.log('[IPC Handler] Characters directory does not exist, returning empty list.');
+          return { success: true, data: [] };
+      }
       const message = error instanceof Error ? error.message : '列出角色时发生未知错误';
       return { success: false, error: message };
     }
@@ -321,6 +388,11 @@ export function registerScriptHandlers(): void {
       return { success: true, data: scripts };
     } catch (error: unknown) {
       console.error('[IPC Handler] Error handling list-scripts:', error);
+       // 如果目录不存在，也返回空列表
+       if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') {
+           console.log('[IPC Handler] Scripts directory does not exist, returning empty list.');
+           return { success: true, data: [] };
+       }
       const message = error instanceof Error ? error.message : '列出剧本时发生未知错误';
       return { success: false, error: message };
     }
@@ -746,10 +818,18 @@ export function registerProxyHandlers(): void {
   console.log('Proxy IPC handlers registered.');
 }
 
-// 注意：确保在 main.ts 中调用所有 register...Handlers() 函数
-// 例如:
-// registerStoreHandlers();
-// registerCharacterHandlers(); // <-- 新增
-// registerScriptHandlers(); // <-- 新增
-// registerLLMServiceHandlers();
-// registerProxyHandlers();
+/**
+ * 统一注册所有 IPC 处理程序
+ */
+export function registerAllIpcHandlers(): void {
+  console.log('[IPC Manager] Registering all IPC handlers...');
+  registerStoreHandlers();
+  registerCharacterHandlers();
+  registerScriptHandlers();
+  registerChatSessionHandlers();
+  registerLLMServiceHandlers();
+  registerProxyHandlers();
+  console.log('[IPC Manager] All IPC handlers registered.');
+}
+
+// 注意：现在应该在 main.ts 中只调用 registerAllIpcHandlers() 函数
