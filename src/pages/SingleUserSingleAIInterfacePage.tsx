@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Input, Button, List, Spin, message, Typography, Card, Empty } from 'antd'; // 移除未使用的 Avatar
-import { SendOutlined } from '@ant-design/icons';
+import { SendOutlined, ArrowLeftOutlined } from '@ant-design/icons'; // <-- 导入返回图标
 import type { Script, AICharacter } from '../types';
 import type { ChatMode } from './ChatModeSelectionPage';
 import type { LLMChatOptions } from '../../electron/llm/BaseLLM'; // 移除未使用的 LLMResponse
@@ -211,25 +211,45 @@ const SingleUserSingleAIInterfacePage: React.FC = () => {
   // --- 渲染聊天消息 ---
   const renderMessage = (item: ChatMessage) => {
     const isUser = item.role === 'user';
-    // 简单的左右布局区分用户和 AI
-    const messageStyle: React.CSSProperties = {
-      textAlign: isUser ? 'right' : 'left',
-      marginBottom: '10px',
-    };
+    // 样式定义移到 return 内部或保持外部，但应用方式改变
+    // const isUser = item.role === 'user'; // <-- 移除重复声明
     const contentStyle: React.CSSProperties = {
-      display: 'inline-block',
-      padding: '8px 12px',
-      borderRadius: '10px',
+      display: 'inline-block', // 让气泡根据内容自适应宽度
+      padding: '10px 14px', // 稍微增大内边距
+      borderRadius: '12px', // 圆角也稍大一点
       backgroundColor: isUser ? '#1890ff' : '#f0f0f0',
       color: isUser ? 'white' : 'black',
-      maxWidth: '70%',
-      textAlign: 'left', // 内容本身左对齐
+      maxWidth: '85%',
+      textAlign: 'left', // 气泡内文字左对齐
+      fontSize: '20px', // <-- 增大字体！
+      lineHeight: '1.6', // 增加行高，让文字更舒展
+      // 添加一点左右 margin 给气泡本身，避免完全贴边
+      margin: isUser ? '0 10px 0 0' : '0 0 0 10px',
+    };
+    const nameTimeStyle: React.CSSProperties = {
+      display: 'block',
+      marginBottom: '2px',
+      fontSize: '12px',
+      color: '#888',
+      // 根据用户左右对齐名字和时间
+      textAlign: isUser ? 'right' : 'left',
+      // 添加一点左右 margin
+      margin: isUser ? '0 10px 0 0' : '0 0 0 10px',
     };
 
+
     return (
-      <List.Item style={{ borderBottom: 'none', padding: '0 10px' }}>
-        <div style={messageStyle}>
-          <Typography.Text strong style={{ display: 'block', marginBottom: '2px', fontSize: '12px', color: '#888' }}>
+      // 使用 Flexbox 实现左右对齐
+      <List.Item style={{
+          borderBottom: 'none',
+          padding: '0', // 移除内边距
+          display: 'flex',
+          justifyContent: isUser ? 'flex-end' : 'flex-start', // 核心对齐属性
+          marginBottom: '10px' // 消息间距放到 List.Item 上
+         }}>
+        {/* 这个 div 只作为容器，不需要额外样式 */}
+        <div>
+          <Typography.Text strong style={nameTimeStyle}>
             {item.characterName} {new Date(item.timestamp).toLocaleTimeString()}
           </Typography.Text>
           <div style={contentStyle}>
@@ -252,12 +272,31 @@ const SingleUserSingleAIInterfacePage: React.FC = () => {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 100px)' /* 估算高度，需要根据实际布局调整 */ }}>
-      <Typography.Title level={3} style={{ textAlign: 'center', margin: '10px 0' }}>
-        {chatConfig.script.title} - {aiCharacter.name} vs {userCharacter.name}
-      </Typography.Title>
-      <Card bodyStyle={{ flexGrow: 1, overflowY: 'auto', padding: '10px' }} style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', marginBottom: '10px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', margin: '10px 0' }}> {/* 使用 Flex 布局并相对定位 */}
+        <Button
+          icon={<ArrowLeftOutlined />}
+          onClick={() => navigate('/single-user-single-ai-setup')} // <-- 改为返回聊天设置页
+          style={{ position: 'absolute', left: 0 }} // 定位到左边
+          aria-label="返回聊天设置" // 更新 aria-label
+        />
+        <Typography.Title level={3} style={{ textAlign: 'center', margin: 0 }}> {/* 移除标题的 margin */}
+          {chatConfig.script.title} - {aiCharacter.name} vs {userCharacter.name}
+        </Typography.Title>
+      </div>
+      {/* 去掉 Card 的边框和默认背景，让它融入页面 */}
+      <Card
+        bordered={false}
+        bodyStyle={{ flexGrow: 1, overflowY: 'auto', padding: '10px 0' }} // 移除 body 的左右 padding
+        style={{
+          flexGrow: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          marginBottom: '10px',
+          backgroundColor: 'transparent' // 背景透明
+        }}
+      >
         {messages.length === 0 ? (
-           <Empty description="开始你们的对话吧！" />
+           <Empty description="开始你们的对话吧！" style={{ paddingTop: '20vh' }}/> // 让空状态更居中
         ) : (
            <List
              dataSource={messages}

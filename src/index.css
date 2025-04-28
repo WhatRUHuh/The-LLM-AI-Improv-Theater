@@ -1,5 +1,14 @@
+/* 定义字体 */
+@font-face {
+  font-family: 'Source Han Sans CN';
+  src: url('/SourceHanSansCN-Normal.otf') format('opentype'); /* 确保字体文件在 public 目录下 */
+  font-weight: normal;
+  font-style: normal;
+}
+
 :root {
-  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
+  /* 全局应用字体，保留备选 */
+  font-family: 'Source Han Sans CN', system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
   font-weight: 400;
 

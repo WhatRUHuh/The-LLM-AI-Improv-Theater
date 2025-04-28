@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, Key } from 'react'; // <-- 导入 Key 类型
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Select, Checkbox, Radio, Button, message, Spin, Typography, Card, Row, Col, Divider, RadioChangeEvent } from 'antd'; // 导入 RadioChangeEvent
+import { ArrowLeftOutlined } from '@ant-design/icons'; // <-- 导入返回图标
 // 移除 CheckboxValueType 导入
 import type { Script, AICharacter } from '../types'; // 导入类型
 import type { ChatMode } from './ChatModeSelectionPage'; // 导入聊天模式类型
@@ -18,7 +19,7 @@ interface CharacterAIConfig {
   model: string;
 }
 
-const ChatSetupPage: React.FC = () => {
+const SingleUserSingleAISetupPage: React.FC = () => { // <-- 修改组件名
   const location = useLocation();
   const navigate = useNavigate();
   const mode = location.state?.mode as ChatMode | undefined; // 获取传递过来的模式
@@ -143,7 +144,12 @@ const ChatSetupPage: React.FC = () => {
   };
 
   // 处理出场角色选择变化
-  const handleCharacterSelectionChange = (checkedValues: Key[]) => { // <-- 使用 Key[] 代替 CheckboxValueType[]
+  const handleCharacterSelectionChange = (checkedValues: Key[]) => {
+    // 单人单 AI 模式限制选择两个角色
+    if (checkedValues.length > 2) {
+      message.warning('单人单 AI 模式最多只能选择两个出场角色哦！');
+      return; // 阻止更新超过两个角色
+    }
     setSelectedCharacterIds(checkedValues);
     // 如果用户之前扮演的角色被取消勾选，重置用户扮演角色
     if (userCharacterId && !checkedValues.includes(userCharacterId)) {
@@ -196,34 +202,29 @@ const ChatSetupPage: React.FC = () => {
       message.error('请先选择剧本！');
       return;
     }
-    if (selectedCharacterIds.length === 0) {
-      message.error('请至少选择一个出场角色！');
-      return;
+    // 校验出场角色数量
+    if (selectedCharacterIds.length !== 2) {
+       message.error('单人单 AI 模式需要正好选择两个出场角色！');
+       return;
     }
-
-    // 校验 AI 配置 (根据模式不同，校验逻辑也不同，这里先按单人单 AI 简化)
-    if (mode === 'singleUserSingleAI') {
-      if (selectedCharacterIds.length !== 2) {
-         message.error('单人单 AI 模式需要正好选择两个出场角色！');
-         return;
-      }
-      if (!userCharacterId) {
-         message.error('请选择您要扮演的角色！');
-         return;
-      }
-      const aiCharacterId = selectedCharacterIds.find(id => id !== userCharacterId);
-      if (!aiCharacterId) {
-         // 理论上不会发生，因为上面校验了长度为 2
-         message.error('无法确定 AI 扮演的角色！');
-         return;
-      }
-      const aiConfig = aiConfigs.get(aiCharacterId as string);
-      if (!aiConfig || !aiConfig.providerId || !aiConfig.model) {
-         message.error(`请为角色 "${characters.find(c=>c.id===aiCharacterId)?.name || 'AI'}" 配置 AI 服务商和模型！`);
-         return;
-      }
+    // 校验用户是否选择了扮演角色
+    if (!userCharacterId) {
+       message.error('请选择您要扮演的角色！');
+       return;
     }
-    // TODO: 添加 'singleUserMultiAI' 和 'director' 模式的校验逻辑
+    // 校验 AI 角色的配置
+    const aiCharacterId = selectedCharacterIds.find(id => id !== userCharacterId);
+    if (!aiCharacterId) {
+       // 理论上不会发生，因为上面校验了长度为 2
+       message.error('无法确定 AI 扮演的角色！');
+       return;
+    }
+    const aiConfig = aiConfigs.get(aiCharacterId as string);
+    const aiCharacterName = characters.find(c=>c.id===aiCharacterId)?.name || 'AI';
+    if (!aiConfig || !aiConfig.providerId || !aiConfig.model) {
+       message.error(`请为 AI 角色 "${aiCharacterName}" 配置 AI 服务商和模型！`);
+       return;
+    }
 
     // --- 准备传递给聊天页面的数据 ---
     const chatConfig = {
@@ -243,19 +244,18 @@ const ChatSetupPage: React.FC = () => {
 
   // --- UI 渲染 ---
 
-  // 渲染模式标题
-  const renderModeTitle = () => {
-    switch (mode) {
-      case 'singleUserSingleAI': return '单人单 AI 模式设置';
-      case 'singleUserMultiAI': return '单人多 AI 模式设置';
-      case 'director': return '导演模式设置';
-      default: return '聊天设置';
-    }
-  };
-
   return (
     <div>
-      <Typography.Title level={2}>{renderModeTitle()}</Typography.Title>
+      <div style={{ display: 'flex', alignItems: 'center', marginBottom: '16px' }}> {/* 使用 Flex 布局 */}
+        <Button
+          icon={<ArrowLeftOutlined />}
+          onClick={() => navigate('/chat-mode-selection')} // <-- 改为返回模式选择页
+          style={{ marginRight: '16px' }}
+          aria-label="返回模式选择" // 更新 aria-label
+        />
+        {/* 直接使用固定标题 */}
+        <Typography.Title level={2} style={{ marginBottom: 0 }}>单人单 AI 模式设置</Typography.Title>
+      </div>
       <Spin spinning={loading}>
         <Card title="1. 选择剧本" style={{ marginBottom: 16 }}>
           <Select
@@ -295,28 +295,30 @@ const ChatSetupPage: React.FC = () => {
 
         {selectedScript && selectedCharacterIds.length > 0 && (
           <Card title="3. 配置角色与 AI" style={{ marginBottom: 16 }}>
-            {/* 用户扮演角色选择 */}
-            {mode !== 'director' && ( // 导演模式不需要用户扮演
-              <>
-                <Typography.Paragraph strong>请选择您要扮演的角色：</Typography.Paragraph>
-                <Radio.Group onChange={handleUserCharacterChange} value={userCharacterId}>
+            {/* 用户扮演角色选择 (移除 mode !== 'director' 判断) */}
+            <>
+              <Typography.Paragraph strong>请选择您要扮演的角色：</Typography.Paragraph>
+              <Radio.Group onChange={handleUserCharacterChange} value={userCharacterId}>
                   {selectedCharacterIds.map(charId => {
                     const character = characters.find(c => c.id === charId);
                     return character ? (
                       <Radio key={charId} value={charId}>{character.name}</Radio>
                     ) : null;
                   })}
-                  <Radio value={null}>我不扮演角色（导演视角）</Radio> {/* 允许用户不扮演 */}
+                  {/* 移除导演视角选项 */}
                 </Radio.Group>
                 <Divider />
               </>
-            )}
+            {/* 移除多余的 )} */}
 
-            {/* AI 角色配置 */}
-            <Typography.Paragraph strong>为 AI 角色配置模型：</Typography.Paragraph>
-            <Row gutter={[16, 16]}>
-              {selectedCharacterIds
-                .filter(charId => mode === 'director' || charId !== userCharacterId) // 过滤掉用户扮演的角色 (导演模式下不过滤)
+            {/* AI 角色配置 (仅当用户已选择扮演角色时显示) */}
+            {userCharacterId && (
+              <>
+                <Typography.Paragraph strong>为 AI 角色配置模型：</Typography.Paragraph>
+                <Row gutter={[16, 16]}>
+                  {selectedCharacterIds
+                    // 只过滤掉用户扮演的角色
+                .filter(charId => charId !== userCharacterId)
                 .map(charId => {
                   const character = characters.find(c => c.id === charId);
                   if (!character) return null;
@@ -344,8 +346,10 @@ const ChatSetupPage: React.FC = () => {
                       </Card>
                     </Col>
                   );
-              })}
-            </Row>
+                  })}
+                </Row>
+              </>
+            )}
           </Card>
         )}
 
@@ -363,4 +367,4 @@ const ChatSetupPage: React.FC = () => {
   );
 };
 
-export default ChatSetupPage;
+export default SingleUserSingleAISetupPage; // <-- 修改导出名

@@ -3,8 +3,8 @@
 // import path from 'path';
 import { BaseLLM } from './BaseLLM';
 import { OpenAILLM } from './OpenAI';
-import { AnthropicLLM } from './AnthropicLLM'; // <-- 导入 Anthropic
-import { GoogleLLM } from './GoogleLLM';     // <-- 导入 Google
+import { AnthropicLLM } from './Anthropic'; // <-- 导入 Anthropic
+import { GoogleLLM } from './Google';     // <-- 导入 Google
 
 /**
  * 管理所有已发现和实例化的 LLM 服务提供商。
