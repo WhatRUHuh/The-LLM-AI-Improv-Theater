@@ -5,16 +5,18 @@ import type { RadioChangeEvent } from 'antd';
 // 代理模式类型
 type ProxyMode = 'system' | 'custom' | 'none';
 
-// 代理配置接口
+// 代理配置接口 (与后端保持一致)
 interface ProxyConfig {
   mode: ProxyMode;
-  url?: string;
+  url?: string; // 当前活动的 URL
+  customProxyUrl?: string; // 持久保存的自定义 URL
 }
 
 const SettingsPage: React.FC = () => {
   // 状态
   const [proxyMode, setProxyMode] = useState<ProxyMode>('none');
-  const [proxyUrl, setProxyUrl] = useState<string>('');
+  const [proxyUrl, setProxyUrl] = useState<string>(''); // 用于输入框和当前自定义模式的值
+  const [customProxyUrl, setCustomProxyUrl] = useState<string>(''); // 保存从后端加载的持久化自定义 URL
   const [loading, setLoading] = useState<boolean>(true);
   const [saving, setSaving] = useState<boolean>(false);
   const [testing, setTesting] = useState<boolean>(false);
@@ -27,9 +29,13 @@ const SettingsPage: React.FC = () => {
       const result = await window.electronAPI.proxyGetConfig();
       console.log('[SettingsPage] Proxy config loaded:', result);
       if (result.success && result.data) {
-        setProxyMode(result.data.mode);
-        setProxyUrl(result.data.url || '');
-        console.log(`[SettingsPage] Set proxy mode to ${result.data.mode}, url to ${result.data.url || 'none'}`);
+        const loadedConfig = result.data as ProxyConfig; // 类型断言，确保能访问 customProxyUrl
+        setProxyMode(loadedConfig.mode);
+        // 设置输入框/当前活动 URL。如果模式是自定义，优先用活动的 url，否则清空
+        setProxyUrl(loadedConfig.mode === 'custom' ? (loadedConfig.url || '') : '');
+        // 保存持久化的自定义 URL
+        setCustomProxyUrl(loadedConfig.customProxyUrl || '');
+        console.log(`[SettingsPage] Set proxy mode to ${loadedConfig.mode}, active url to ${loadedConfig.url || 'none'}, saved custom url to ${loadedConfig.customProxyUrl || 'none'}`);
       } else {
         message.error(`加载代理配置失败: ${result.error || '未知错误'}`);
       }
@@ -64,8 +70,18 @@ const SettingsPage: React.FC = () => {
     const mode = e.target.value as ProxyMode;
     setProxyMode(mode);
 
+    // 如果切换到自定义模式，并且有保存的自定义 URL，则预填输入框
+    if (mode === 'custom' && customProxyUrl) {
+      setProxyUrl(customProxyUrl);
+    } else if (mode !== 'custom') {
+      // 切换到非自定义模式时，清空当前 URL 输入框的值
+      setProxyUrl('');
+    }
+
     // 如果选择了"不使用代理"或"使用系统代理"，自动保存配置
     if (mode === 'none' || mode === 'system') {
+      // 注意：这里传递 mode 给 saveProxyConfig，它会使用这个 mode
+      // 并且因为 mode 不是 'custom'，所以不会传递 proxyUrl
       await saveProxyConfig(mode);
     }
   };

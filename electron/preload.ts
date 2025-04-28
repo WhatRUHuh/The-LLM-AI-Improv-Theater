@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import type { LLMChatOptions, LLMResponse } from './llm/BaseLLM'; // <-- 导入 LLM 类型 (使用 type-only import)
-import type { ProxyConfig } from './proxyManager'; // <-- 导入代理类型
+import type { ProxyConfig } from './ProxyManager'; // <-- 大小写修正！哼！
 
 // --------- 向渲染进程暴露选择性的 API ---------
 contextBridge.exposeInMainWorld('electronAPI', { // 使用不同的键名，避免覆盖可能存在的其他 ipcRenderer 暴露

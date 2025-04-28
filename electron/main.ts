@@ -4,7 +4,7 @@ import fs from 'node:fs'; // 导入 fs 模块
 import { fileURLToPath } from 'node:url'; // 导入 fileURLToPath
 import { registerStoreHandlers, registerLLMServiceHandlers, registerProxyHandlers } from './ipcHandlers';
 import { llmServiceManager } from './llm/LLMServiceManager';
-import { proxyManager } from './proxyManager';
+import { proxyManager } from './ProxyManager';
 import { readStore } from './storage/jsonStore';
 
 // --- 全局常量 ---

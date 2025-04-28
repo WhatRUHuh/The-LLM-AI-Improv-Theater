@@ -9,8 +9,9 @@ export type ProxyMode = 'system' | 'custom' | 'none'
 
 // 代理配置接口
 export interface ProxyConfig {
-  mode: ProxyMode
-  url?: string
+  mode: ProxyMode; // 当前激活的模式
+  url?: string; // 当前实际使用的代理 URL (可能是系统或自定义)
+  customProxyUrl?: string; // 用户保存的自定义代理 URL
 }
 
 /**

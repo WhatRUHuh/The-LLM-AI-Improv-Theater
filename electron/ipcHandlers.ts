@@ -2,9 +2,8 @@ import { ipcMain } from 'electron';
 import { readStore, writeStore } from './storage/jsonStore'; // 导入存储函数
 import { LLMChatOptions, LLMResponse } from './llm/BaseLLM'; // <-- 导入 LLM 类型
 import { llmServiceManager } from './llm/LLMServiceManager'; // 导入 LLM 服务管理器
-import { proxyManager, ProxyConfig } from './proxyManager'; // 导入代理管理器
+import { proxyManager, ProxyConfig } from './ProxyManager'; // 导入代理管理器
 import { getSystemProxy } from 'os-proxy-config'; // 导入系统代理获取函数
-import { execSync } from 'child_process'; // 导入子进程执行函数
 
 // --- 文件名常量 ---
 const API_KEYS_FILE = 'apiKeys.json';
@@ -189,12 +188,56 @@ export function registerLLMServiceHandlers(): void {
  */
 export function registerProxyHandlers(): void {
   // 设置代理
-  ipcMain.handle('proxy-set-config', async (event, config: ProxyConfig) => {
-    console.log(`[IPC Main] Received proxy-set-config with mode: ${config.mode}, url: ${config.url || 'none'}`);
+  ipcMain.handle('proxy-set-config', async (event, incomingConfig: ProxyConfig) => {
+    console.log(`[IPC Main] Received proxy-set-config:`, incomingConfig);
     try {
-      await proxyManager.configureProxy(config);
-      await writeStore(PROXY_CONFIG_FILE, config);
-      console.log(`[IPC Main] Proxy configured and saved successfully.`);
+      // 1. 读取当前保存的配置以保留旧的 customProxyUrl
+      const savedConfig = await readStore<ProxyConfig>(PROXY_CONFIG_FILE, { mode: 'none' });
+      console.log('[IPC Main] Current saved config:', savedConfig);
+
+      // 2. 准备传递给 ProxyManager 的配置 (反映用户当前意图)
+      const configForManager: ProxyConfig = { ...incomingConfig };
+
+      // 3. 准备要保存到文件的配置 (持久化 customProxyUrl)
+      const configToSave: ProxyConfig = {
+        mode: incomingConfig.mode,
+        url: undefined, // 活动 URL 取决于模式
+        customProxyUrl: savedConfig.customProxyUrl // 默认保留旧的自定义 URL
+      };
+
+      if (incomingConfig.mode === 'custom') {
+        if (incomingConfig.url) {
+          // 使用传入的 URL 作为活动 URL 和新的持久化自定义 URL
+          configToSave.url = incomingConfig.url;
+          configToSave.customProxyUrl = incomingConfig.url;
+          configForManager.url = incomingConfig.url; // 确保 Manager 获得 URL
+        } else {
+          // 如果自定义模式未提供 URL，则尝试使用已保存的
+          console.warn('[IPC Main] Custom proxy mode selected without URL, attempting to use saved customProxyUrl.');
+          configToSave.url = savedConfig.customProxyUrl; // 使用已保存的作为活动 URL
+          configForManager.url = savedConfig.customProxyUrl; // 告知 Manager 使用已保存的
+          // configToSave.customProxyUrl 保持不变 (savedConfig.customProxyUrl)
+        }
+      } else if (incomingConfig.mode === 'system') {
+        // 系统模式下，活动 URL 由 Manager 确定，不在此处保存特定 URL
+        configToSave.url = undefined;
+        configForManager.url = undefined; // Manager 不需要 URL 来设置系统代理
+      } else { // mode === 'none'
+        configToSave.url = undefined; // 无活动 URL
+        configForManager.url = undefined;
+      }
+
+      // 4. 使用反映用户意图的配置来配置 ProxyManager
+      await proxyManager.configureProxy(configForManager);
+      console.log(`[IPC Main] ProxyManager configured with:`, configForManager);
+      // 注意: 如果模式是 'system', proxyManager 内部可能会在检测到系统代理后更新自己的 'url'。
+      // 保存的 'url' 字段可能不反映 *实际* 的系统代理 URL，但这没关系。
+      // 主要目标是正确保存模式和 customProxyUrl。
+
+      // 5. 将最终的配置状态保存到文件
+      await writeStore(PROXY_CONFIG_FILE, configToSave);
+      console.log(`[IPC Main] Proxy config saved to ${PROXY_CONFIG_FILE}:`, configToSave);
+
       return { success: true };
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : '设置代理时出错';
@@ -244,34 +287,13 @@ export function registerProxyHandlers(): void {
         const systemProxyInfo = await getSystemProxy();
         console.log('[IPC Main] Current system proxy info:', systemProxyInfo);
 
-        // 检查Windows注册表中的代理设置
-        if (process.platform === 'win32') {
-          try {
-            // 尝试直接使用Node.js检查环境变量
-            console.log('[IPC Main] Checking proxy environment variables:');
-            console.log(`  HTTP_PROXY: ${process.env.HTTP_PROXY || 'not set'}`);
-            console.log(`  HTTPS_PROXY: ${process.env.HTTPS_PROXY || 'not set'}`);
-
-            // 尝试使用child_process执行命令获取Windows代理设置
-            try {
-              const regQuery = execSync('reg query "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings" /v ProxyEnable').toString();
-              console.log('[IPC Main] Windows proxy enabled:', regQuery.includes('0x1'));
-
-              const regQueryServer = execSync('reg query "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings" /v ProxyServer').toString();
-              console.log('[IPC Main] Windows proxy server:', regQueryServer);
-            } catch (regErr) {
-              console.error('[IPC Main] Error querying Windows registry:', regErr);
-            }
-          } catch (winErr) {
-            console.error('[IPC Main] Error checking Windows proxy settings:', winErr);
-          }
-        }
+        // (已移除直接查询注册表的部分，以 ProxyManager/os-proxy-config 为准)
       } catch (err) {
-        console.error('[IPC Main] Error getting system proxy info:', err);
+        console.error('[IPC Main] Error getting system proxy info via getSystemProxy():', err);
       }
 
-      // 输出当前环境变量中的代理设置
-      console.log('[IPC Main] Current proxy environment variables:');
+      // 输出当前由 ProxyManager 设置的环境变量 (这才是应用实际使用的)
+      console.log('[IPC Main] Current proxy environment variables (set by ProxyManager):');
       console.log(`HTTP_PROXY: ${process.env.HTTP_PROXY || 'not set'}`);
       console.log(`HTTPS_PROXY: ${process.env.HTTPS_PROXY || 'not set'}`);
       console.log(`http_proxy: ${process.env.http_proxy || 'not set'}`);
