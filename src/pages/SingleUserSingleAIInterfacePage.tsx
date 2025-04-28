@@ -328,9 +328,15 @@ prompt += `\n与你对话的是由人类用户扮演的角色: **${userChar.name
           style={{ position: 'absolute', left: 0 }}
           aria-label="返回聊天设置"
         />
-        <Typography.Title level={3} style={{ textAlign: 'center', margin: 0 }}>
-          {chatConfig.script.title} - {aiCharacter.name} vs {userCharacter.name}
-        </Typography.Title>
+        {/* 使用 div 包裹两行文本 */}
+        <div style={{ textAlign: 'center' }}>
+            <Typography.Title level={4} style={{ margin: 0, lineHeight: 1.2 }}>
+              剧本名：{chatConfig.script.title}
+            </Typography.Title>
+            <Typography.Text type="secondary" style={{ fontSize: '12px' }}>
+              出场角色：{userCharacter.name}, {aiCharacter.name}
+            </Typography.Text>
+        </div>
       </div>
       <Card
         variant="borderless" // 使用 variant 替代 bordered
