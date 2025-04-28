@@ -1,5 +1,8 @@
 // 告诉 TypeScript 全局的 Window 接口上有一个 electronAPI 对象
 
+import type { LLMChatOptions, LLMResponse } from '../electron/llm/BaseLLM'; // <-- 导入 LLM 类型
+import type { ProxyConfig } from '../electron/proxyManager'; // <-- 导入 ProxyConfig 类型
+
 declare global {
   interface Window {
     electronAPI: {
@@ -30,15 +33,18 @@ declare global {
         => Promise<{ success: boolean; data?: string[]; error?: string }>;
       llmSaveCustomModels: (providerId: string, models: string[])
         => Promise<{ success: boolean; error?: string }>;
+      // 新增：调用聊天生成 API 的类型声明
+      llmGenerateChat: (providerId: string, options: LLMChatOptions)
+        => Promise<{ success: boolean; data?: LLMResponse; error?: string }>;
 
       // --- 代理相关 API 类型声明 ---
       proxyGetConfig: ()
         => Promise<{
              success: boolean;
-             data?: { mode: 'system' | 'custom' | 'none'; url?: string };
+             data?: ProxyConfig; // <-- 使用导入的类型
              error?: string
            }>;
-      proxySetConfig: (config: { mode: 'system' | 'custom' | 'none'; url?: string })
+     proxySetConfig: (config: ProxyConfig) // <-- 使用导入的类型
         => Promise<{ success: boolean; error?: string }>;
       proxyTestConnection: ()
         => Promise<{

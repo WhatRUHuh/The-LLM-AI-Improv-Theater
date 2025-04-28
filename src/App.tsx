@@ -7,7 +7,7 @@ const { Content, Sider } = Layout;
 
 // 更新菜单项，key 对应路由路径
 const menuItems = [
-  { key: '/chat-setup', label: '聊天' }, // 默认指向聊天设置
+  { key: '/chat-mode-selection', label: '聊天' }, // <-- 修改 key 指向模式选择页
   { key: '/scripts', label: '剧本管理' },
   { key: '/characters', label: '角色管理' },
   { key: '/ai-config', label: 'AI 配置' },

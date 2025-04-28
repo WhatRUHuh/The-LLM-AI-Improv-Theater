@@ -2,9 +2,9 @@ import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 
 // 导入所有页面组件
-import ChatModeSelectionPage from './pages/ChatModeSelectionPage'; // <-- 导入新页面
-import ChatSetupPage from './pages/ChatSetupPage';
-import ChatInterfacePage from './pages/ChatInterfacePage';
+import ChatModeSelectionPage from './pages/ChatModeSelectionPage';
+import SingleUserSingleAISetupPage from './pages/SingleUserSingleAISetupPage'; // <-- 改导入名
+import SingleUserSingleAIInterfacePage from './pages/SingleUserSingleAIInterfacePage'; // <-- 改导入名
 import ScriptManagementPage from './pages/ScriptManagementPage';
 import CharacterManagementPage from './pages/CharacterManagementPage';
 import CharacterEditorPage from './pages/CharacterEditorPage';
@@ -29,9 +29,9 @@ const AppRouter: React.FC = () => {
       <Route path="/" element={<Navigate to="/chat-mode-selection" replace />} />
 
       {/* 定义所有页面的路由 */}
-      <Route path="/chat-mode-selection" element={<ChatModeSelectionPage />} /> {/* <-- 添加新路由 */}
-      <Route path="/chat-setup" element={<ChatSetupPage />} />
-      <Route path="/chat-interface" element={<ChatInterfacePage />} />
+      <Route path="/chat-mode-selection" element={<ChatModeSelectionPage />} />
+      <Route path="/single-user-single-ai-setup" element={<SingleUserSingleAISetupPage />} /> {/* <-- 修改路径 */}
+      <Route path="/single-user-single-ai-interface" element={<SingleUserSingleAIInterfacePage />} /> {/* <-- 修改路径 */}
       {/* 剧本管理路由 */}
       <Route path="/scripts" element={<ScriptManagementPage />} />
       <Route path="/scripts/add" element={<ScriptEditorPage />} /> {/* 添加剧本路由 */}

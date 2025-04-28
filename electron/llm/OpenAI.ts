@@ -51,9 +51,10 @@ export class OpenAILLM extends BaseLLM {
     if (!this.openai) {
       return { content: '', error: 'OpenAI API Key 未设置或客户端初始化失败' };
     }
-    if (!options.model || !this.getAvailableModels().includes(options.model)) {
-       return { content: '', error: `模型 ${options.model} 不可用或不受支持` };
-    }
+    // 移除此处对模型的检查，因为前端选择时已经基于 llmGetAvailableModels (包含自定义)
+    // if (!options.model || !this.getAvailableModels().includes(options.model)) {
+    //    return { content: '', error: `模型 ${options.model} 不可用或不受支持` };
+    // }
 
     try {
       // 准备 OpenAI API 请求参数
@@ -89,6 +90,7 @@ export class OpenAILLM extends BaseLLM {
       const content = completion.choices[0]?.message?.content ?? '';
       const usage = completion.usage;
 
+      // 不再将原始响应发送回渲染进程
       return {
         content: content,
         modelUsed: completion.model,
@@ -97,7 +99,7 @@ export class OpenAILLM extends BaseLLM {
           completionTokens: usage?.completion_tokens,
           totalTokens: usage?.total_tokens,
         },
-        rawResponse: completion, // 包含原始响应供调试
+        // rawResponse: completion, // 移除原始响应
       };
 
     } catch (error: unknown) {
@@ -130,7 +132,8 @@ export class OpenAILLM extends BaseLLM {
         detailedError = error;
       }
 
-      return { content: '', error: detailedError, rawResponse: error };
+      // 只返回错误消息字符串
+      return { content: '', error: detailedError /* rawResponse: error */ }; // 移除原始错误对象
     }
   }
 

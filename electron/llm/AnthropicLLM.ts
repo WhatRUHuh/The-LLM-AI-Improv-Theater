@@ -53,9 +53,10 @@ export class AnthropicLLM extends BaseLLM {
     if (!this.anthropic) {
       return { content: '', error: 'Anthropic API Key 未设置或客户端初始化失败' };
     }
-    if (!options.model || !this.getAvailableModels().includes(options.model)) {
-       return { content: '', error: `模型 ${options.model} 不可用或不受支持` };
-    }
+    // 移除此处对模型的检查
+    // if (!options.model || !this.getAvailableModels().includes(options.model)) {
+    //    return { content: '', error: `模型 ${options.model} 不可用或不受支持` };
+    // }
 
     try {
       // --- 构造 Anthropic API 请求参数 ---
@@ -111,15 +112,16 @@ export class AnthropicLLM extends BaseLLM {
 
       const usage = completion.usage;
 
+      // 不再将原始响应发送回渲染进程
       return {
         content: content,
         modelUsed: completion.model,
         usage: {
-          promptTokens: usage?.input_tokens, // 注意字段名不同
-          completionTokens: usage?.output_tokens, // 注意字段名不同
+          promptTokens: usage?.input_tokens,
+          completionTokens: usage?.output_tokens,
           totalTokens: (usage?.input_tokens ?? 0) + (usage?.output_tokens ?? 0),
         },
-        rawResponse: completion,
+        // rawResponse: completion, // 移除原始响应
       };
 
     } catch (error: unknown) {
@@ -133,7 +135,8 @@ export class AnthropicLLM extends BaseLLM {
       } else if (typeof error === 'string') {
         detailedError = error;
       }
-      return { content: '', error: detailedError, rawResponse: error };
+      // 只返回错误消息字符串
+      return { content: '', error: detailedError /* rawResponse: error */ }; // 移除原始错误对象
     }
   }
 }

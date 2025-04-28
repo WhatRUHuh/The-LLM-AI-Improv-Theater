@@ -83,9 +83,10 @@ export class GoogleLLM extends BaseLLM {
     if (!this.genAI) {
       return { content: '', error: 'Google API Key 未设置或客户端初始化失败' };
     }
-    if (!options.model || !this.getAvailableModels().includes(options.model)) {
-       return { content: '', error: `模型 ${options.model} 不可用或不受支持` };
-    }
+    // 移除此处对模型的检查
+    // if (!options.model || !this.getAvailableModels().includes(options.model)) {
+    //    return { content: '', error: `模型 ${options.model} 不可用或不受支持` };
+    // }
 
     try {
       const generativeModel = this.genAI.getGenerativeModel({
@@ -160,11 +161,12 @@ export class GoogleLLM extends BaseLLM {
       }
 
 
+      // 不再将原始响应发送回渲染进程
       return {
         content: content,
-        modelUsed: options.model, // Google API 响应中可能不直接包含模型名称，使用请求时的模型
+        modelUsed: options.model,
         // usage: usageInfo, // Token 计数可能不准确或不可用
-        rawResponse: result,
+        // rawResponse: result, // 移除原始响应
       };
 
     } catch (error: unknown) {
@@ -180,7 +182,8 @@ export class GoogleLLM extends BaseLLM {
       } else if (typeof error === 'string') {
         detailedError = error;
       }
-      return { content: '', error: detailedError, rawResponse: error };
+      // 只返回错误消息字符串
+      return { content: '', error: detailedError /* rawResponse: error */ }; // 移除原始错误对象
     }
   }
 }

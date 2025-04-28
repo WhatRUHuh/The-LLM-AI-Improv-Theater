@@ -236,8 +236,8 @@ const ChatSetupPage: React.FC = () => {
     };
 
     console.log('[ChatSetupPage] Starting chat with config:', chatConfig);
-    // 导航到聊天界面，并传递配置
-    navigate('/chat-interface', { state: { chatConfig } });
+    // 导航到聊天界面，并传递配置 (使用新的路径)
+    navigate('/single-user-single-ai-interface', { state: { chatConfig } }); // <-- 修改导航路径
   };
 
 

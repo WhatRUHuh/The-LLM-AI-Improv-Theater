@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Card, Row, Col, Typography } from 'antd'; // 移除未使用的 Button
-import { UserOutlined, TeamOutlined, PlaySquareOutlined } from '@ant-design/icons'; // 移除未使用的 RobotOutlined
+import { Card, Row, Col, Typography, message } from 'antd'; // <-- 导入 message
+import { UserOutlined, TeamOutlined, PlaySquareOutlined } from '@ant-design/icons';
 
 // 定义聊天模式类型
 export type ChatMode = 'singleUserSingleAI' | 'singleUserMultiAI' | 'director';
@@ -12,8 +12,13 @@ const ChatModeSelectionPage: React.FC = () => {
   const handleModeSelect = (mode: ChatMode) => {
     console.log(`[ChatModeSelection] Selected mode: ${mode}`);
     // 导航到下一步（聊天设置页面），并传递选择的模式
-    // 注意：路由路径 '/chat-setup' 需要在 router.tsx 中定义
-    navigate('/chat-setup', { state: { mode } });
+    // 注意：路由路径需要与 router.tsx 中定义的一致
+    if (mode === 'singleUserSingleAI') {
+      navigate('/single-user-single-ai-setup', { state: { mode } }); // <-- 修改导航路径
+    } else {
+      // TODO: 为其他模式添加导航逻辑
+      message.warning(`模式 "${mode}" 的设置页面尚未实现！`);
+    }
   };
 
   return (
