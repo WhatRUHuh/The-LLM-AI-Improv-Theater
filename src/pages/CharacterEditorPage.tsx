@@ -1,24 +1,46 @@
-import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-// 移除 PageHeader, 添加 Typography 和 Space
+import React, { useState, useEffect, useRef } from 'react';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { Form, Input, Button, message, Card, Typography, Space } from 'antd';
-import { ArrowLeftOutlined } from '@ant-design/icons'; // 导入返回图标
+import { ArrowLeftOutlined } from '@ant-design/icons';
 import { AICharacter } from '../types';
 import { v4 as uuidv4 } from 'uuid';
+import { useLastVisited } from '../contexts/LastVisitedContext';
+
+// 定义页面内部状态快照的类型
+type CharacterEditorStateSnapshot = {
+    formValues: Partial<AICharacter>;
+    isEditMode: boolean;
+    characterId?: string;
+};
 
 const CharacterEditorPage: React.FC = () => {
-  const { id: characterId } = useParams<{ id: string }>(); // 获取 URL 中的角色 ID (编辑时)
-  const navigate = useNavigate(); // 获取导航函数
+  const { id: characterIdFromParams } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { updateLastVisitedNavInfo } = useLastVisited();
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
-  const [initialValues, setInitialValues] = useState<Partial<AICharacter>>({}); // 用于编辑时填充表单
 
-  const isEditMode = !!characterId; // 判断是编辑模式还是添加模式
-  const rolesFileName = 'characters.json'; // 使用统一的文件名
+  const restoredState = location.state as CharacterEditorStateSnapshot | undefined;
+  const isEditMode = restoredState?.isEditMode ?? !!characterIdFromParams;
+  const characterId = restoredState?.characterId ?? characterIdFromParams;
+  const rolesFileName = 'characters.json';
 
-  // 如果是编辑模式，加载现有角色数据
+  const [currentFormValues, setCurrentFormValues] = useState<Partial<AICharacter>>(restoredState?.formValues ?? {});
+  const isInitialLoad = useRef(true);
+
+  // --- 数据加载或状态恢复 Effect ---
   useEffect(() => {
-    if (isEditMode && characterId) {
+    // 检查 location.key 是否为 'default'，如果是，则忽略 restoredState
+    const isActualNavigation = location.key !== 'default';
+
+    if (restoredState && restoredState.formValues && isActualNavigation) {
+      console.log('[CharacterEditorPage] Restoring state from context:', restoredState);
+      form.setFieldsValue(restoredState.formValues);
+      setCurrentFormValues(restoredState.formValues);
+      isInitialLoad.current = false;
+    } else if (isEditMode && characterId && isInitialLoad.current) {
+      console.log('[CharacterEditorPage] Loading character data for editing...');
       setLoading(true);
       const loadCharacter = async () => {
         try {
@@ -26,32 +48,69 @@ const CharacterEditorPage: React.FC = () => {
           if (result.success && Array.isArray(result.data)) {
             const characterToEdit = result.data.find(character => character.id === characterId);
             if (characterToEdit) {
-              setInitialValues(characterToEdit);
-              form.setFieldsValue(characterToEdit); // 填充表单
+              form.setFieldsValue(characterToEdit);
+              setCurrentFormValues(characterToEdit);
             } else {
               message.error('未找到要编辑的角色！');
-              navigate('/characters'); // 跳转回列表页
+              navigate('/characters');
             }
           } else {
             message.error(`加载角色数据失败: ${result.error || '未知错误'}`);
             navigate('/characters');
           }
         } catch (error) {
-          message.error(`调用读取存储时出错: ${error}`);
+          message.error(`调用读取存储时出错: ${error instanceof Error ? error.message : String(error)}`);
           navigate('/characters');
         } finally {
           setLoading(false);
         }
       };
       loadCharacter();
-    } else {
-       // 添加模式，可以设置一些默认值
-       form.setFieldsValue({ gender: '未知' });
+      isInitialLoad.current = false;
+    } else if (!isEditMode && isInitialLoad.current) {
+        console.log('[CharacterEditorPage] Initializing for add mode...');
+        const defaultValues = { gender: '未知' };
+        form.setFieldsValue(defaultValues);
+        setCurrentFormValues(defaultValues);
+        isInitialLoad.current = false;
+    } else if (isInitialLoad.current) {
+        isInitialLoad.current = false;
     }
-  }, [isEditMode, characterId, navigate, form]);
+  }, [isEditMode, characterId, navigate, form, restoredState, location.key]);
 
-  // 处理表单提交 (保存)
-  const handleFinish = async (values: Omit<AICharacter, 'id'>) => {
+  // --- 监听表单值变化并更新 currentFormValues ---
+  // 修复 ESLint any 警告
+  const handleFormValuesChange = (_changedValues: unknown, allValues: Partial<AICharacter>) => {
+      if (!isInitialLoad.current) {
+          setCurrentFormValues(allValues);
+      }
+  };
+
+
+  // --- 保存状态到 Context Effect ---
+  useEffect(() => {
+    if (!isInitialLoad.current && !loading && Object.keys(currentFormValues).length > 0) {
+        const currentStateSnapshot: CharacterEditorStateSnapshot = {
+            formValues: currentFormValues,
+            isEditMode: isEditMode,
+            characterId: characterId,
+        };
+        updateLastVisitedNavInfo('characters', location.pathname, undefined, currentStateSnapshot);
+    }
+  }, [currentFormValues, isEditMode, characterId, updateLastVisitedNavInfo, location.pathname, loading]);
+
+
+  // --- 处理表单提交 (保存) ---
+  // 修复 onFinish 类型错误
+  const handleFinish = async (values: Partial<AICharacter>) => {
+    // 在函数内部进行更严格的校验，确保必填项存在
+    if (!values.name || !values.personality) {
+        message.error('请确保姓名和性格已填写！');
+        return;
+    }
+    // 此时可以安全地认为 values 满足 Omit<AICharacter, 'id'> 的大部分要求
+    // 如果还有其他必填项，也应在此处检查
+
     setLoading(true);
     try {
       const allCharactersResult = await window.electronAPI.readStore(rolesFileName, [] as AICharacter[]);
@@ -64,16 +123,17 @@ const CharacterEditorPage: React.FC = () => {
       let updatedCharacters: AICharacter[];
       const currentCharacters = allCharactersResult.data;
 
+      // 类型断言，因为我们已经在上面检查过必填项
+      const finalValues = values as Omit<AICharacter, 'id'>;
+
       if (isEditMode && characterId) {
-        // 编辑模式
         updatedCharacters = currentCharacters.map(character =>
-          character.id === characterId ? { ...initialValues, ...values, id: characterId } : character // 合并旧数据和新数据
+          character.id === characterId ? { ...character, ...finalValues, id: characterId } : character
         );
       } else {
-        // 添加模式
         const newCharacter: AICharacter = {
           id: uuidv4(),
-          ...values,
+          ...finalValues, // 使用校验后的 finalValues
         };
         updatedCharacters = [...currentCharacters, newCharacter];
       }
@@ -81,12 +141,14 @@ const CharacterEditorPage: React.FC = () => {
       const saveResult = await window.electronAPI.writeStore(rolesFileName, updatedCharacters);
       if (saveResult.success) {
         message.success(isEditMode ? '角色已更新' : '角色已添加');
-        navigate('/characters'); // 保存成功后返回列表页
+        // 清除当前版块的最后访问状态，以便下次从列表页进入
+        updateLastVisitedNavInfo('characters', '/characters', undefined, undefined);
+        navigate('/characters');
       } else {
         message.error(`保存角色失败: ${saveResult.error || '未知错误'}`);
       }
     } catch (error) {
-      message.error(`保存角色时出错: ${error}`);
+      message.error(`保存角色时出错: ${error instanceof Error ? error.message : String(error)}`);
     } finally {
       setLoading(false);
     }
@@ -102,15 +164,15 @@ const CharacterEditorPage: React.FC = () => {
         </Space>
        }
        extra={<Typography.Text type="secondary">填写角色的详细信息</Typography.Text>}
-       loading={loading && isEditMode} // 编辑时加载数据才显示 loading
+       loading={loading && isEditMode && isInitialLoad.current}
       >
           <Form
             form={form}
             layout="vertical"
-            onFinish={handleFinish}
-            initialValues={initialValues} // 设置表单初始值 (编辑时)
+            onFinish={handleFinish} // 现在类型匹配了
+            onValuesChange={handleFormValuesChange}
           >
-            {/* 表单项和之前 Modal 里的一样 */}
+            {/* 表单项保持不变 */}
             <Form.Item name="name" label="姓名" rules={[{ required: true, message: '请输入角色姓名!' }]}>
               <Input />
             </Form.Item>
@@ -168,7 +230,7 @@ const CharacterEditorPage: React.FC = () => {
               </Button>
             </Form.Item>
           </Form>
-      </Card> // Card 结束
+      </Card>
     );
   };
 
