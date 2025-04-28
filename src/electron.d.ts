@@ -17,12 +17,12 @@ declare global {
       // --- Character Data API ---
       listCharacters: () => Promise<{ success: boolean; data?: AICharacter[]; error?: string }>;
       saveCharacter: (character: AICharacter) => Promise<{ success: boolean; error?: string }>;
-      deleteCharacter: (characterName: string) => Promise<{ success: boolean; error?: string }>;
+      deleteCharacter: (characterId: string) => Promise<{ success: boolean; error?: string }>; // <-- 参数改为 characterId
 
       // --- Script Data API ---
       listScripts: () => Promise<{ success: boolean; data?: Script[]; error?: string }>;
       saveScript: (script: Script) => Promise<{ success: boolean; error?: string }>;
-      deleteScript: (scriptTitle: string) => Promise<{ success: boolean; error?: string }>;
+      deleteScript: (scriptId: string) => Promise<{ success: boolean; error?: string }>; // <-- 参数改为 scriptId
 
       // --- LLM 服务相关 API 类型声明 ---
       llmGetServices: ()

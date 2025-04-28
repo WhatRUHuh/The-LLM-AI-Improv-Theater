@@ -3,10 +3,10 @@ import { Table, Button, message, Popconfirm, Tag } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import { Script, AICharacter } from '../types';
 
-// columns 的 handleDelete 现在需要传入剧本标题，而不是 ID
+// columns 的 handleDelete 现在需要传入剧本 ID
 const columns = (
   characters: AICharacter[], // 仍然需要角色列表来显示名字
-  handleDelete: (title: string) => void, // <-- 改为接收 title
+  handleDelete: (id: string) => void, // <-- 确认接收 id
   navigateToEdit: (id: string) => void
 ) => [
   {
@@ -48,8 +48,8 @@ const columns = (
       <span>
         <Button type="link" onClick={() => navigateToEdit(record.id)}>编辑</Button>
         <Popconfirm
-          title={`确定删除剧本 "${record.title}" 吗？`} // 提示更明确
-          onConfirm={() => handleDelete(record.title)} // <-- 传入 title
+          title={`确定删除剧本 "${record.title}" 吗？`}
+          onConfirm={() => handleDelete(record.id)} // <-- 确认传入 id
           okText="确定"
           cancelText="取消"
         >
@@ -62,13 +62,10 @@ const columns = (
 
 const ScriptManagementPage: React.FC = () => {
   const [scripts, setScripts] = useState<Script[]>([]);
-  const [loadingScripts, setLoadingScripts] = useState(false); // 区分剧本和角色的 loading
+  const [loadingScripts, setLoadingScripts] = useState(false);
   const [loadingCharacters, setLoadingCharacters] = useState(false);
   const [allCharacters, setAllCharacters] = useState<AICharacter[]>([]);
   const navigate = useNavigate();
-
-  // const scriptsFileName = 'scripts.json'; // 不再需要
-  // const rolesFileName = 'characters.json'; // 不再需要
 
   // 加载所有角色数据 - 使用新的 listCharacters API
   const loadAllCharacters = async () => {
@@ -114,9 +111,6 @@ const ScriptManagementPage: React.FC = () => {
     }
   };
 
-  // 不再需要 saveScripts 函数，列表页不负责批量保存
-  // const saveScripts = async (updatedScripts: Script[]) => { ... };
-
   // 组件加载时读取剧本和角色数据
   useEffect(() => {
     loadScripts();
@@ -133,17 +127,19 @@ const ScriptManagementPage: React.FC = () => {
     navigate(`/scripts/edit/${id}`);
   };
 
-  // 处理删除 - 使用新的 deleteScript API，传入剧本标题
-  const handleDelete = async (title: string) => {
-    console.log(`[ScriptManagementPage] Attempting to delete script: ${title}`);
+  // 处理删除 - 使用新的 deleteScript API，传入剧本 ID
+  const handleDelete = async (id: string) => { // <-- 改回接收 id
+    const scriptToDelete = scripts.find(s => s.id === id); // 找到剧本用于显示标题
+    const scriptTitle = scriptToDelete ? scriptToDelete.title : `ID: ${id}`;
+    console.log(`[ScriptManagementPage] Attempting to delete script: ${scriptTitle} (ID: ${id})`);
     try {
-      const result = await window.electronAPI.deleteScript(title);
+      const result = await window.electronAPI.deleteScript(id); // <-- 传递 id
       if (result.success) {
-        message.success(`剧本 "${title}" 已删除`);
+        message.success(`剧本 "${scriptTitle}" 已删除`);
         // 删除成功后重新加载列表
         loadScripts();
       } else {
-        message.error(`删除剧本 "${title}" 失败: ${result.error || '未知错误'}`);
+        message.error(`删除剧本 "${scriptTitle}" 失败: ${result.error || '未知错误'}`);
       }
     } catch (error: unknown) {
       const errorMsg = error instanceof Error ? error.message : String(error);

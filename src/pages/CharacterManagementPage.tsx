@@ -4,9 +4,9 @@ import { Table, Button, message, Popconfirm } from 'antd'; // 移除了 Tag
 import { useNavigate } from 'react-router-dom';
 import { AICharacter } from '../types';
 
-// columns 的 handleDelete 现在需要传入角色名称，而不是 ID
+// columns 的 handleDelete 现在需要传入角色 ID
 const columns = (
-  handleDelete: (name: string) => void, // <-- 改为接收 name
+  handleDelete: (id: string) => void, // <-- 改回接收 id
   navigateToEdit: (id: string) => void
 ) => [
   // 头像列可以取消注释并添加 Avatar 导入
@@ -45,8 +45,8 @@ const columns = (
         {/* 点击编辑按钮时调用 navigateToEdit */}
         <Button type="link" onClick={() => navigateToEdit(record.id)}>编辑</Button>
         <Popconfirm
-          title={`确定删除角色 "${record.name}" 吗？`} // 提示更明确
-          onConfirm={() => handleDelete(record.name)} // <-- 传入 name
+          title={`确定删除角色 "${record.name}" 吗？`}
+          onConfirm={() => handleDelete(record.id)} // <-- 传入 id
           okText="确定"
           cancelText="取消"
         >
@@ -121,17 +121,19 @@ const CharacterManagementPage: React.FC = () => {
     navigate(`/characters/edit/${id}`);
   };
 
-  // 处理删除 - 使用新的 deleteCharacter API，传入角色名称
-  const handleDelete = async (name: string) => { // <-- 改为接收 name，设为 async
-    console.log(`[CharacterManagementPage] Attempting to delete character: ${name}`);
+  // 处理删除 - 使用新的 deleteCharacter API，传入角色 ID
+  const handleDelete = async (id: string) => { // <-- 改回接收 id
+    const characterToDelete = characters.find(c => c.id === id); // 找到角色用于显示名字
+    const characterName = characterToDelete ? characterToDelete.name : `ID: ${id}`;
+    console.log(`[CharacterManagementPage] Attempting to delete character: ${characterName} (ID: ${id})`);
     try {
-      const result = await window.electronAPI.deleteCharacter(name);
+      const result = await window.electronAPI.deleteCharacter(id); // <-- 传递 id
       if (result.success) {
-        message.success(`角色 "${name}" 已删除`);
+        message.success(`角色 "${characterName}" 已删除`);
         // 删除成功后重新加载列表
         loadCharacters();
       } else {
-        message.error(`删除角色 "${name}" 失败: ${result.error || '未知错误'}`);
+        message.error(`删除角色 "${characterName}" 失败: ${result.error || '未知错误'}`);
       }
     } catch (error: unknown) {
       const errorMsg = error instanceof Error ? error.message : String(error);

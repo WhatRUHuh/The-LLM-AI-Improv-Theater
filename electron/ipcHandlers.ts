@@ -28,18 +28,15 @@ const getCharactersDir = () => path.join(getStorageDir(), CHARACTERS_DIR_NAME);
 const getScriptsDir = () => path.join(getStorageDir(), SCRIPTS_DIR_NAME);
 const getChatsDir = () => path.join(getStorageDir(), CHATS_DIR_NAME); // <-- 新增获取聊天记录目录函数
 
-// 文件名清理函数 (移除或替换非法字符)
-function sanitizeFilename(name: string): string {
-  if (!name) return '_untitled_'; // 防止空名
-  // 移除 Windows 和 macOS/Linux 中的非法字符，并将空格替换为下划线
-  // 同时移除可能导致路径问题的点 '.'
-  const baseName = name.replace(/\.[^/.]+$/, ""); // 移除扩展名（如果有）
-  // const extension = name.includes('.') ? name.substring(name.lastIndexOf('.')) : ''; // 不再需要保留原始扩展名，因为我们强制 .json
-  const cleanedBase = baseName.replace(/[<>:"/\\|?*]/g, '_').replace(/\s+/g, '_').replace(/\./g, '_');
-  // 防止文件名过长 (Windows 路径限制约为 260 字符，文件名本身限制更宽松，但保守点)
-  const finalName = cleanedBase.substring(0, 100) + '.json'; // 限制基础名长度并加上 .json
-  console.log(`[Sanitize] Original: "${name}", Sanitized: "${finalName}"`);
-  return finalName;
+// 文件名清理函数不再需要基于 name/title，可以直接用 ID
+// function sanitizeFilename(name: string): string { ... }
+
+// 辅助函数：确保 ID 作为文件名是安全的 (虽然 UUID 通常安全，以防万一)
+function sanitizeIdForFilename(id: string): string {
+    if (!id) return '_invalid_id_';
+    // UUID 通常只包含字母、数字和连字符，但还是替换掉潜在的路径分隔符等
+    const cleanedId = id.replace(/[<>:"/\\|?*]/g, '_');
+    return `${cleanedId}.json`;
 }
 
 
@@ -297,9 +294,10 @@ export function registerCharacterHandlers(): void {
       return { success: false, error: '无效的角色数据' };
     }
 
-    const sanitizedName = sanitizeFilename(character.name); // 使用名字生成文件名
-    const filePath = path.join(charactersDir, sanitizedName);
-    console.log(`[IPC Handler] Saving character to: ${filePath}`);
+    // 使用 ID 生成文件名
+    const fileName = sanitizeIdForFilename(character.id);
+    const filePath = path.join(charactersDir, fileName);
+    console.log(`[IPC Handler] Saving character ${character.name} (ID: ${character.id}) to: ${filePath}`);
 
     try {
       await ensureDirExists(charactersDir); // 确保目录存在
@@ -312,7 +310,7 @@ export function registerCharacterHandlers(): void {
       // 暂时采用覆盖逻辑，接受改名后旧文件残留的问题。
 
       await fs.writeFile(filePath, JSON.stringify(character, null, 2), 'utf-8');
-      console.log(`[IPC Handler] Character ${character.name} saved successfully to ${sanitizedName}.`);
+      console.log(`[IPC Handler] Character ${character.name} saved successfully to ${fileName}.`);
       return { success: true };
     } catch (error: unknown) {
       console.error(`[IPC Handler] Error handling save-character for ${character.name}:`, error);
@@ -321,29 +319,30 @@ export function registerCharacterHandlers(): void {
     }
   });
 
-  // 删除角色
-  ipcMain.handle('delete-character', async (event, characterName: string) => {
-    console.log(`[IPC Handler] Received delete-character for: ${characterName}`);
-    if (!characterName) {
-      return { success: false, error: '未提供要删除的角色名称' };
+  // 删除角色 - 按 ID 删除
+  ipcMain.handle('delete-character', async (event, characterId: string) => { // <-- 参数改为 characterId
+    console.log(`[IPC Handler] Received delete-character for ID: ${characterId}`);
+    if (!characterId) {
+      return { success: false, error: '未提供要删除的角色 ID' };
     }
 
-    const sanitizedName = sanitizeFilename(characterName);
-    const filePath = path.join(charactersDir, sanitizedName);
+    // 使用 ID 生成文件名
+    const fileName = sanitizeIdForFilename(characterId);
+    const filePath = path.join(charactersDir, fileName);
     console.log(`[IPC Handler] Deleting character file: ${filePath}`);
 
     try {
-      await ensureDirExists(charactersDir); // 确保目录存在，虽然删除不存在的文件不报错，但日志清晰
+      await ensureDirExists(charactersDir);
       await fs.unlink(filePath);
-      console.log(`[IPC Handler] Character file ${sanitizedName} deleted successfully.`);
+      console.log(`[IPC Handler] Character file ${fileName} deleted successfully.`);
       return { success: true };
     } catch (error: unknown) {
        // 如果文件不存在，也算成功（幂等性）
        if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') {
-           console.log(`[IPC Handler] Character file ${sanitizedName} not found for deletion, considering it success.`);
+           console.log(`[IPC Handler] Character file ${fileName} not found for deletion, considering it success.`);
            return { success: true };
        }
-      console.error(`[IPC Handler] Error handling delete-character for ${characterName}:`, error);
+      console.error(`[IPC Handler] Error handling delete-character for ID ${characterId}:`, error);
       const message = error instanceof Error ? error.message : '删除角色时发生未知错误';
       return { success: false, error: message };
     }
@@ -405,16 +404,17 @@ export function registerScriptHandlers(): void {
       return { success: false, error: '无效的剧本数据' };
     }
 
-    const sanitizedName = sanitizeFilename(script.title); // 使用标题生成文件名
-    const filePath = path.join(scriptsDir, sanitizedName);
-     console.log(`[IPC Handler] Saving script to: ${filePath}`);
+    // 使用 ID 生成文件名
+    const fileName = sanitizeIdForFilename(script.id);
+    const filePath = path.join(scriptsDir, fileName);
+    console.log(`[IPC Handler] Saving script ${script.title} (ID: ${script.id}) to: ${filePath}`);
 
     try {
       await ensureDirExists(scriptsDir); // 确保目录存在
 
       // 同样存在改名后旧文件残留的问题
       await fs.writeFile(filePath, JSON.stringify(script, null, 2), 'utf-8');
-      console.log(`[IPC Handler] Script ${script.title} saved successfully to ${sanitizedName}.`);
+      console.log(`[IPC Handler] Script ${script.title} saved successfully to ${fileName}.`);
       return { success: true };
     } catch (error: unknown) {
       console.error(`[IPC Handler] Error handling save-script for ${script.title}:`, error);
@@ -423,29 +423,30 @@ export function registerScriptHandlers(): void {
     }
   });
 
-  // 删除剧本
-  ipcMain.handle('delete-script', async (event, scriptTitle: string) => {
-    console.log(`[IPC Handler] Received delete-script for: ${scriptTitle}`);
-     if (!scriptTitle) {
-      return { success: false, error: '未提供要删除的剧本标题' };
+  // 删除剧本 - 按 ID 删除
+  ipcMain.handle('delete-script', async (event, scriptId: string) => { // <-- 参数改为 scriptId
+    console.log(`[IPC Handler] Received delete-script for ID: ${scriptId}`);
+     if (!scriptId) {
+      return { success: false, error: '未提供要删除的剧本 ID' };
     }
 
-    const sanitizedName = sanitizeFilename(scriptTitle);
-    const filePath = path.join(scriptsDir, sanitizedName);
+    // 使用 ID 生成文件名
+    const fileName = sanitizeIdForFilename(scriptId);
+    const filePath = path.join(scriptsDir, fileName);
     console.log(`[IPC Handler] Deleting script file: ${filePath}`);
 
     try {
       await ensureDirExists(scriptsDir);
       await fs.unlink(filePath);
-      console.log(`[IPC Handler] Script file ${sanitizedName} deleted successfully.`);
+      console.log(`[IPC Handler] Script file ${fileName} deleted successfully.`);
       return { success: true };
     } catch (error: unknown) {
        // 如果文件不存在，也算成功（幂等性）
        if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') {
-           console.log(`[IPC Handler] Script file ${sanitizedName} not found for deletion, considering it success.`);
+           console.log(`[IPC Handler] Script file ${fileName} not found for deletion, considering it success.`);
            return { success: true };
        }
-      console.error(`[IPC Handler] Error handling delete-script for ${scriptTitle}:`, error);
+      console.error(`[IPC Handler] Error handling delete-script for ID ${scriptId}:`, error);
       const message = error instanceof Error ? error.message : '删除剧本时发生未知错误';
       return { success: false, error: message };
     }

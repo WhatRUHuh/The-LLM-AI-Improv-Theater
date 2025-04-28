@@ -28,16 +28,16 @@ contextBridge.exposeInMainWorld('electronAPI', { // 使用不同的键名，避�
     ipcRenderer.invoke('list-characters'),
   saveCharacter: (character: AICharacter): Promise<{ success: boolean; error?: string }> =>
     ipcRenderer.invoke('save-character', character),
-  deleteCharacter: (characterName: string): Promise<{ success: boolean; error?: string }> =>
-    ipcRenderer.invoke('delete-character', characterName),
+  deleteCharacter: (characterId: string): Promise<{ success: boolean; error?: string }> => // <-- 参数改为 characterId
+    ipcRenderer.invoke('delete-character', characterId), // <-- 传递 characterId
 
   // --- Script Data API ---
   listScripts: (): Promise<{ success: boolean; data?: Script[]; error?: string }> =>
     ipcRenderer.invoke('list-scripts'),
   saveScript: (script: Script): Promise<{ success: boolean; error?: string }> =>
     ipcRenderer.invoke('save-script', script),
-  deleteScript: (scriptTitle: string): Promise<{ success: boolean; error?: string }> =>
-    ipcRenderer.invoke('delete-script', scriptTitle),
+  deleteScript: (scriptId: string): Promise<{ success: boolean; error?: string }> => // <-- 参数改为 scriptId
+    ipcRenderer.invoke('delete-script', scriptId), // <-- 传递 scriptId
 
   // --- LLM 服务相关 API ---
   llmGetServices: (): Promise<{ success: boolean; data?: { providerId: string; providerName: string; defaultModels: string[] }[]; error?: string }> =>
