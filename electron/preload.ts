@@ -10,6 +10,12 @@ contextBridge.exposeInMainWorld('electronAPI', { // 使用不同的键名，避�
     ipcRenderer.invoke('read-store', fileName, defaultValue),
   writeStore: (fileName: string, data: unknown): Promise<{ success: boolean; error?: string }> =>
     ipcRenderer.invoke('write-store', fileName, data),
+  // 新增：列出聊天会话文件
+  listChatSessions: (): Promise<{ success: boolean; data?: string[]; error?: string }> =>
+    ipcRenderer.invoke('list-chat-sessions'),
+  // 新增：删除聊天会话文件
+  deleteChatSession: (fileName: string): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke('delete-chat-session', fileName),
 
   // --- LLM 服务相关 API ---
   llmGetServices: (): Promise<{ success: boolean; data?: { providerId: string; providerName: string; defaultModels: string[] }[]; error?: string }> =>

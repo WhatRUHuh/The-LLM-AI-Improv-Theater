@@ -49,3 +49,42 @@ export interface Script {
 
 
 // 未来可以添加更多类型定义，例如设置等
+
+// --- 聊天模式定义 ---
+export type ChatMode = 'singleUserSingleAI' | 'singleUserMultiAI' | 'director';
+
+// --- 聊天配置、消息、快照 类型定义 ---
+
+/**
+ * 聊天配置信息 (从 Setup 页面传递)
+ */
+export interface ChatConfig {
+  mode: ChatMode;
+  script: Script;
+  participatingCharacters: AICharacter[];
+  userCharacterId: string | null;
+  aiConfigs: Record<string, { providerId: string; model: string }>;
+}
+
+/**
+ * 单条对话消息结构
+ */
+export interface ChatMessage {
+  role: 'user' | 'assistant';
+  characterId: string;
+  characterName: string;
+  content: string;
+  timestamp: number;
+}
+
+/**
+ * 聊天页面内部状态快照 (用于保存和恢复)
+ */
+export interface ChatPageStateSnapshot {
+    chatConfig: ChatConfig; // 需要保存完整的配置信息
+    messages: ChatMessage[];
+    inputValue: string;
+    systemPrompt: string; // 系统提示也需要保存
+    chatSessionId: string; // 会话 ID 也需要保存
+    // aiCharacter 和 userCharacter 可以从 chatConfig 恢复，无需单独保存
+}

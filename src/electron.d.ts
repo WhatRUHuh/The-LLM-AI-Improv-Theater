@@ -12,6 +12,12 @@ declare global {
       // 定义 writeStore 方法的类型签名
       writeStore: (fileName: string, data: unknown)
         => Promise<{ success: boolean; error?: string }>;
+      // 新增：列出聊天会话文件的类型声明
+      listChatSessions: ()
+        => Promise<{ success: boolean; data?: string[]; error?: string }>;
+      // 新增：删除聊天会话文件的类型声明
+      deleteChatSession: (fileName: string)
+        => Promise<{ success: boolean; error?: string }>;
 
       // --- LLM 服务相关 API 类型声明 ---
       llmGetServices: ()

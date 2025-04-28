@@ -2,44 +2,23 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Input, Button, List, Spin, message, Typography, Card, Empty } from 'antd';
 import { SendOutlined, ArrowLeftOutlined } from '@ant-design/icons';
-import type { Script, AICharacter } from '../types';
-import type { ChatMode } from './ChatModeSelectionPage';
+// 从公共类型文件导入所有需要的类型
+import type {
+  // Script, // <-- 删除未使用的 Script
+  AICharacter,
+  // ChatMode, // <-- 删除未使用的 ChatMode
+  ChatConfig,
+  ChatMessage,
+  ChatPageStateSnapshot
+} from '../types';
 import type { LLMChatOptions } from '../../electron/llm/BaseLLM';
 import { useLastVisited } from '../contexts/LastVisitedContext'; // <-- 导入 Context Hook
-
-// 从 Setup 页面传递过来的配置类型 (保持不变)
-interface ChatConfig {
-  mode: ChatMode;
-  script: Script;
-  participatingCharacters: AICharacter[];
-  userCharacterId: string | null;
-  aiConfigs: Record<string, { providerId: string; model: string }>;
-}
-
-// 对话消息结构 (保持不变)
-interface ChatMessage {
-  role: 'user' | 'assistant';
-  characterId: string;
-  characterName: string;
-  content: string;
-  timestamp: number;
-}
-
-// 定义聊天页面内部状态快照的类型
-interface ChatPageStateSnapshot {
-    chatConfig: ChatConfig; // 需要保存完整的配置信息
-    messages: ChatMessage[];
-    inputValue: string;
-    systemPrompt: string; // 系统提示也需要保存
-    chatSessionId: string; // 会话 ID 也需要保存
-    // aiCharacter 和 userCharacter 可以从 chatConfig 恢复，无需单独保存
-}
 
 
 const SingleUserSingleAIInterfacePage: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { updateLastVisitedNavInfo } = useLastVisited(); // <-- 使用 Context Hook
+  const { updateLastVisitedNavInfo, getLastVisitedNavInfo } = useLastVisited(); // <-- 获取 getLastVisitedNavInfo
 
   // 尝试从 location.state 获取状态快照或初始 chatConfig
   // location.state 现在可能是 ChatPageStateSnapshot (从 Context 恢复)
@@ -147,7 +126,7 @@ const SingleUserSingleAIInterfacePage: React.FC = () => {
             chatSessionId,
         };
         // 使用 location.pathname 获取当前路径
-        updateLastVisitedNavInfo('chat', location.pathname, undefined, currentStateSnapshot);
+        updateLastVisitedNavInfo('singleUserSingleAIInterface', location.pathname, undefined, currentStateSnapshot); // <-- 使用更明确的 key
         // console.log('[ChatInterface] Updated context with current state snapshot.'); // 减少日志
     }
   }, [messages, inputValue, chatConfig, systemPrompt, chatSessionId, updateLastVisitedNavInfo, location.pathname]);
@@ -200,10 +179,19 @@ const SingleUserSingleAIInterfacePage: React.FC = () => {
         // 更新状态会触发上面的 useEffect 来保存快照
         setMessages(prevMessages => [...prevMessages, aiResponse]);
         // 不再在此处单独写入文件，由 Context Effect 处理
-        // if (chatSessionId) {
-        //    window.electronAPI.writeStore(`${chatSessionId}.json`, [...history, aiResponse])
-        //      .catch(err => message.error(`保存对话历史失败: ${err}`));
-        // }
+        // 确保 chatConfig 存在再保存快照
+        if (chatSessionId && chatConfig) {
+           // 构建包含新消息的状态快照
+           const snapshotToSave: ChatPageStateSnapshot = {
+               chatConfig, // 使用当前的 chatConfig (包含 mode)
+               messages: [...history, aiResponse], // 使用包含新 AI 回复的消息列表
+               inputValue, // 保存当前输入框内容 (虽然通常是空的)
+               systemPrompt, // 保存当前的系统提示
+               chatSessionId, // 保存当前的会话 ID
+           };
+           window.electronAPI.writeStore(`${chatSessionId}.json`, snapshotToSave) // 保存整个快照对象
+             .catch(err => message.error(`保存对话历史失败: ${err}`));
+        }
       } else {
         message.error(`AI 回复失败: ${result.error || '未知错误'}`);
       }
@@ -237,10 +225,19 @@ const SingleUserSingleAIInterfacePage: React.FC = () => {
     setMessages(updatedMessages);
     setInputValue('');
     // 不再在此处单独写入文件
-    // if (chatSessionId) {
-    //    window.electronAPI.writeStore(`${chatSessionId}.json`, updatedMessages)
-    //      .catch(err => message.error(`保存对话历史失败: ${err}`));
-    // }
+    // 确保 chatConfig 存在再保存快照
+    if (chatSessionId && chatConfig) {
+       // 构建包含新消息的状态快照
+       const snapshotToSave: ChatPageStateSnapshot = {
+           chatConfig, // 使用当前的 chatConfig (包含 mode)
+           messages: updatedMessages, // 使用包含新用户消息的消息列表
+           inputValue: '', // 用户发送后输入框已清空
+           systemPrompt, // 保存当前的系统提示
+           chatSessionId, // 保存当前的会话 ID
+       };
+       window.electronAPI.writeStore(`${chatSessionId}.json`, snapshotToSave) // 保存整个快照对象
+         .catch(err => message.error(`保存对话历史失败: ${err}`));
+    }
 
     // 发送更新后的历史给 AI
     sendMessageToAI(updatedMessages);
@@ -310,7 +307,12 @@ const SingleUserSingleAIInterfacePage: React.FC = () => {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', margin: '10px 0' }}>
         <Button
           icon={<ArrowLeftOutlined />}
-          onClick={() => navigate('/single-user-single-ai-setup')} // 返回聊天设置页
+          onClick={() => {
+            // 获取设置页面的最后访问信息，包含路径和状态(包括 mode)
+            const setupNavInfo = getLastVisitedNavInfo('singleUserSingleAISetup', '/single-user-single-ai-setup'); // <-- 使用更明确的 key
+            // 使用获取到的路径和状态进行导航
+            navigate(setupNavInfo.path, { state: setupNavInfo.internalState });
+          }}
           style={{ position: 'absolute', left: 0 }}
           aria-label="返回聊天设置"
         />
@@ -319,8 +321,8 @@ const SingleUserSingleAIInterfacePage: React.FC = () => {
         </Typography.Title>
       </div>
       <Card
-        bordered={false}
-        bodyStyle={{ flexGrow: 1, overflowY: 'auto', padding: '10px 0' }}
+        variant="borderless" // 使用 variant 替代 bordered
+        styles={{ body: { flexGrow: 1, overflowY: 'auto', padding: '10px 0' } }} // 使用 styles.body 替代 bodyStyle
         style={{
           flexGrow: 1,
           display: 'flex',

@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { Select, Checkbox, Radio, Button, message, Spin, Typography, Card, Row, Col, Divider, RadioChangeEvent } from 'antd';
 import { ArrowLeftOutlined } from '@ant-design/icons';
 import type { Script, AICharacter } from '../types';
-import type { ChatMode } from './ChatModeSelectionPage';
+import type { ChatMode } from '../types'; // <-- 修改导入路径
 import { useLastVisited } from '../contexts/LastVisitedContext'; // <-- 导入 Context Hook
 
 // 定义 AI 服务商信息结构 (复用或重新定义)
@@ -144,7 +144,7 @@ const SingleUserSingleAISetupPage: React.FC = () => {
     }
 
 
-  }, [mode, navigate]); // 依赖项主要是 mode 和 navigate
+  }, [mode, navigate, restoredState]); // 添加 restoredState 到依赖项
 
   // --- 保存状态到 Context Effect ---
   useEffect(() => {
@@ -160,7 +160,7 @@ const SingleUserSingleAISetupPage: React.FC = () => {
         };
         // 使用 location.pathname 获取当前路径
         // 注意：这里不传递 navigation state (第三个参数)，只传递 internalState (第四个参数)
-        updateLastVisitedNavInfo('chat', location.pathname, undefined, currentStateSnapshot);
+        updateLastVisitedNavInfo('singleUserSingleAISetup', location.pathname, undefined, currentStateSnapshot); // <-- 使用更明确的 key
         // console.log('[ChatSetupPage] Updated context with current state snapshot.'); // 减少日志
     }
 

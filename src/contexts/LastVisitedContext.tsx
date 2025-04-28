@@ -1,7 +1,7 @@
 import React, { createContext, useState, useContext, ReactNode, useCallback } from 'react';
 
 // 定义每个版块的类型
-type SectionKey = 'chat' | 'scripts' | 'characters' | 'ai-config' | 'history' | 'settings';
+type SectionKey = 'singleUserSingleAISetup' | 'singleUserSingleAIInterface' | 'scripts' | 'characters' | 'ai-config' | 'history' | 'settings'; // 使用更明确的 key
 
 // 定义存储的导航信息结构 - 增加 internalState (并导出)
 export interface NavigationInfo { // <-- 添加 export

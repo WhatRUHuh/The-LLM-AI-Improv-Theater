@@ -1,4 +1,7 @@
 import { ipcMain } from 'electron';
+import fs from 'fs/promises'; // 需要 fs 来列出和删除文件
+import path from 'path'; // 需要 path 来处理路径
+import { app } from 'electron'; // 需要 app 来获取存储目录
 import { readStore, writeStore } from './storage/jsonStore'; // 导入存储函数
 import { LLMChatOptions, LLMResponse } from './llm/BaseLLM'; // <-- 导入 LLM 类型
 import { llmServiceManager } from './llm/LLMServiceManager'; // 导入 LLM 服务管理器
@@ -9,6 +12,13 @@ import { getSystemProxy } from 'os-proxy-config'; // 导入系统代理获取函
 const API_KEYS_FILE = 'apiKeys.json';
 const CUSTOM_MODELS_FILE = 'customModels.json';
 const PROXY_CONFIG_FILE = 'proxyConfig.json';
+const SCRIPTS_FILE = 'scripts.json'; // 添加已知配置文件常量
+const CHARACTERS_FILE = 'characters.json'; // 添加已知配置文件常量
+
+// --- 辅助函数获取存储目录 ---
+// (jsonStore.ts 内部也有，但在这里直接用更方便)
+const getStorageDir = () => path.join(app.getPath('userData'), 'TheLLMAIImprovTheaterData');
+
 
 // --- 类型定义 ---
 type CustomModelsStore = Record<string, string[]>;
@@ -43,6 +53,72 @@ export function registerStoreHandlers(): void {
       return { success: false, error: message };
     }
   });
+
+
+  // 处理列出聊天会话文件请求
+  ipcMain.handle('list-chat-sessions', async () => {
+    console.log('[IPC Handler] Received list-chat-sessions');
+    const storageDir = getStorageDir();
+    try {
+      // 确保目录存在，虽然 read/write 也会确保，但这里单独列出文件前检查更稳妥
+      try {
+        await fs.access(storageDir);
+      } catch (accessError: unknown) {
+        // 如果目录不存在，直接返回空列表
+        if (accessError && typeof accessError === 'object' && 'code' in accessError && accessError.code === 'ENOENT') {
+          console.log('[IPC Handler] Storage directory does not exist, returning empty list.');
+          return { success: true, data: [] };
+        }
+        throw accessError; // 其他访问错误则抛出
+      }
+
+      const files = await fs.readdir(storageDir);
+      // 过滤出 .json 文件，并排除已知的配置文件
+      const knownConfigFiles = new Set([API_KEYS_FILE, CUSTOM_MODELS_FILE, PROXY_CONFIG_FILE, SCRIPTS_FILE, CHARACTERS_FILE]);
+      const sessionFiles = files.filter(file => file.endsWith('.json') && !knownConfigFiles.has(file));
+      console.log('[IPC Handler] Found session files:', sessionFiles);
+      return { success: true, data: sessionFiles };
+    } catch (error: unknown) {
+      console.error('[IPC Handler] Error handling list-chat-sessions:', error);
+      const message = error instanceof Error ? error.message : '列出聊天记录时发生未知错误';
+      return { success: false, error: message };
+    }
+  });
+
+  // 处理删除聊天会话文件请求
+  ipcMain.handle('delete-chat-session', async (event, fileName: string) => {
+    console.log(`[IPC Handler] Received delete-chat-session for ${fileName}`);
+    // 安全校验：确保文件名是合法的，并且只包含字母、数字、连字符和点
+    if (!fileName || !/^[a-zA-Z0-9\-.]+$/.test(fileName) || !fileName.endsWith('.json')) {
+        console.error(`[IPC Handler] Invalid or potentially unsafe filename for deletion: ${fileName}`);
+        return { success: false, error: '无效的文件名' };
+    }
+    // 再次确认不是要删除关键配置文件
+     const knownConfigFiles = new Set([API_KEYS_FILE, CUSTOM_MODELS_FILE, PROXY_CONFIG_FILE, SCRIPTS_FILE, CHARACTERS_FILE]);
+     if (knownConfigFiles.has(fileName)) {
+        console.error(`[IPC Handler] Attempted to delete a known config file: ${fileName}`);
+        return { success: false, error: '不能删除核心配置文件' };
+     }
+
+    const storageDir = getStorageDir();
+    const filePath = path.join(storageDir, fileName);
+
+    try {
+      await fs.unlink(filePath); // 删除文件
+      console.log(`[IPC Handler] Successfully deleted file: ${filePath}`);
+      return { success: true };
+    } catch (error: unknown) {
+      console.error(`[IPC Handler] Error handling delete-chat-session for ${fileName}:`, error);
+      // 如果文件不存在，也算成功（幂等性）
+      if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') {
+          console.log(`[IPC Handler] File ${fileName} not found for deletion, considering it success.`);
+          return { success: true };
+      }
+      const message = error instanceof Error ? error.message : '删除聊天记录时发生未知错误';
+      return { success: false, error: message };
+    }
+  });
+
 
   console.log('Store IPC handlers registered.');
 }

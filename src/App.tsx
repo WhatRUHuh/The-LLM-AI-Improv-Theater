@@ -16,13 +16,19 @@ const menuItems = [
 ];
 
 // 定义 SectionKey 类型 (与 Context 文件保持一致)
-type SectionKey = 'chat' | 'scripts' | 'characters' | 'ai-config' | 'history' | 'settings';
+// 使用从 Context 导入的 SectionKey 类型，或者在这里保持一致
+// 为了简单起见，我们直接在这里修改，但更好的做法是从 Context 导入
+type SectionKey = 'singleUserSingleAISetup' | 'singleUserSingleAIInterface' | 'scripts' | 'characters' | 'ai-config' | 'history' | 'settings';
 
 // 辅助函数：根据路径判断属于哪个版块
 const getSectionKeyFromPath = (path: string): SectionKey | null => {
   if (path.startsWith('/scripts')) return 'scripts';
   if (path.startsWith('/characters')) return 'characters';
-  if (path.startsWith('/chat') || path.startsWith('/single-user-single-ai')) return 'chat';
+  // 更精确地匹配聊天相关的路径
+  if (path === '/single-user-single-ai-setup') return 'singleUserSingleAISetup';
+  if (path === '/single-user-single-ai-interface') return 'singleUserSingleAIInterface';
+  // 保留 /chat-mode-selection 的处理，或者根据需要调整
+  if (path === '/chat-mode-selection') return 'singleUserSingleAISetup'; // 暂时让它也指向 setup key，或者创建一个新的 key
   if (path.startsWith('/ai-config')) return 'ai-config';
   if (path.startsWith('/history')) return 'history';
   if (path.startsWith('/settings')) return 'settings';
@@ -66,7 +72,9 @@ const AppLayout: React.FC = () => {
     switch (sectionKey) {
       case 'scripts': return ['/scripts'];
       case 'characters': return ['/characters'];
-      case 'chat': return ['/chat-mode-selection'];
+      // 更新 case 以匹配新的 key
+      case 'singleUserSingleAISetup': return ['/chat-mode-selection']; // 菜单选中项仍对应模式选择
+      case 'singleUserSingleAIInterface': return ['/chat-mode-selection']; // 聊天界面也让模式选择菜单高亮
       case 'ai-config': return ['/ai-config'];
       case 'history': return ['/history'];
       case 'settings': return ['/settings'];

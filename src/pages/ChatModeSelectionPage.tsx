@@ -3,8 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Card, Row, Col, Typography, message } from 'antd'; // <-- 导入 message
 import { UserOutlined, TeamOutlined, PlaySquareOutlined } from '@ant-design/icons';
 
-// 定义聊天模式类型
-export type ChatMode = 'singleUserSingleAI' | 'singleUserMultiAI' | 'director';
+import type { ChatMode } from '../types'; // <-- 从 types 导入 ChatMode
 
 const ChatModeSelectionPage: React.FC = () => {
   const navigate = useNavigate();
