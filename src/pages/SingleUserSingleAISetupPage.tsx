@@ -3,8 +3,8 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { Select, Checkbox, Radio, Button, message, Spin, Typography, Card, Row, Col, Divider, RadioChangeEvent } from 'antd';
 import { ArrowLeftOutlined } from '@ant-design/icons';
 import type { Script, AICharacter } from '../types';
-import type { ChatMode } from '../types'; // <-- 修改导入路径
-import { useLastVisited } from '../contexts/LastVisitedContext'; // <-- 导入 Context Hook
+import type { ChatMode } from '../types';
+import { useLastVisited } from '../hooks/useLastVisited'; // <-- 修改导入路径
 
 // 定义 AI 服务商信息结构 (复用或重新定义)
 interface LLMServiceInfo {

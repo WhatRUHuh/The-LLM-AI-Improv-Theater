@@ -4,7 +4,7 @@ import { Form, Input, Button, message, Card, Typography, Space } from 'antd';
 import { ArrowLeftOutlined } from '@ant-design/icons';
 import { AICharacter } from '../types';
 import { v4 as uuidv4 } from 'uuid';
-import { useLastVisited } from '../contexts/LastVisitedContext';
+import { useLastVisited } from '../hooks/useLastVisited'; // <-- 修改导入路径
 
 // 定义页面内部状态快照的类型
 type CharacterEditorStateSnapshot = {

@@ -4,7 +4,7 @@ import { Form, Input, Button, message, Card, Typography, Space, Select } from 'a
 import { ArrowLeftOutlined } from '@ant-design/icons';
 import { Script, AICharacter } from '../types';
 import { v4 as uuidv4 } from 'uuid';
-import { useLastVisited } from '../contexts/LastVisitedContext';
+import { useLastVisited } from '../hooks/useLastVisited'; // <-- 修改导入路径
 
 // 定义页面内部状态快照的类型
 type ScriptEditorStateSnapshot = {
@@ -17,7 +17,7 @@ const ScriptEditorPage: React.FC = () => {
   const { id: scriptIdFromParams } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const location = useLocation();
-  const { updateLastVisitedNavInfo } = useLastVisited();
+  const { updateLastVisitedNavInfo } = useLastVisited(); // <-- 现在可以正确导入了
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false); // 用于保存时的 loading
   const [dataLoading, setDataLoading] = useState(false); // 用于加载剧本/角色数据的 loading

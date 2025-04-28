@@ -75,8 +75,18 @@ const CharacterManagementPage: React.FC = () => {
     try {
       const result = await window.electronAPI.listCharacters();
       if (result.success && Array.isArray(result.data)) {
-        console.log('[CharacterManagementPage] Loaded characters:', result.data);
-        setCharacters(result.data);
+        console.log('[CharacterManagementPage] Loaded characters raw:', result.data.length);
+        // 在设置状态前过滤重复 ID
+        const uniqueCharacters = result.data.reduce((acc: AICharacter[], current) => {
+          if (!acc.some(char => char.id === current.id)) {
+            acc.push(current);
+          } else {
+            console.warn(`[CharacterManagementPage] Found duplicate character ID, skipping: ${current.id} (${current.name})`);
+          }
+          return acc;
+        }, []);
+        console.log('[CharacterManagementPage] Setting unique characters:', uniqueCharacters.length);
+        setCharacters(uniqueCharacters);
       } else {
         message.error(`加载角色列表失败: ${result.error || '未知错误'}`);
         setCharacters([]);

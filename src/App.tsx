@@ -1,7 +1,8 @@
 import React from 'react'; // <-- 移除 useEffect
 import { Layout, Menu, theme } from 'antd';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { LastVisitedProvider, useLastVisited } from './contexts/LastVisitedContext'; // <-- 移除 NavigationInfo
+import { LastVisitedProvider } from './contexts/LastVisitedContext'; // <-- 只导入 Provider
+import { useLastVisited } from './hooks/useLastVisited'; // <-- 从新路径导入 Hook
 import AppRouter from './router';
 
 const { Content, Sider } = Layout;
@@ -41,7 +42,7 @@ const AppLayout: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   // 注意：这里不再直接解构 update 方法，因为更新逻辑移到页面内部
-  const { getLastVisitedNavInfo } = useLastVisited();
+  const { getLastVisitedNavInfo } = useLastVisited(); // <-- 现在可以正确导入了
   const {
     token: { colorBgContainer, borderRadiusLG },
   } = theme.useToken();

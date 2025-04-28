@@ -1,28 +1,16 @@
-import React, { createContext, useState, useContext, ReactNode, useCallback } from 'react';
+import React, { useState, ReactNode, useCallback } from 'react';
+// 从新文件导入 Context 定义和类型 (移除未使用的 LastVisitedContextType)
+import { LastVisitedContext, NavigationInfo } from './lastVisitedContextDefinition';
 
-// 定义每个版块的类型
-type SectionKey = 'singleUserSingleAISetup' | 'singleUserSingleAIInterface' | 'scripts' | 'characters' | 'ai-config' | 'history' | 'settings'; // 使用更明确的 key
-
-// 定义存储的导航信息结构 - 增加 internalState (并导出)
-export interface NavigationInfo { // <-- 添加 export
-  path: string;
-  state?: unknown; // 导航状态
-  internalState?: unknown; // 页面内部状态快照
-}
+// 定义每个版块的类型 (可以保留在这里，或者也移到 definition 文件)
+type SectionKey = 'singleUserSingleAISetup' | 'singleUserSingleAIInterface' | 'scripts' | 'characters' | 'ai-config' | 'history' | 'settings';
 
 // 定义 Context 存储的数据结构：{ 版块Key: 最后访问的导航信息 }
 type LastVisitedNavInfo = Partial<Record<SectionKey, NavigationInfo>>;
 
-// 定义 Context 提供的值的类型
-interface LastVisitedContextType {
-  lastVisitedNavInfo: LastVisitedNavInfo;
-  // 更新函数现在接收可选的 internalState
-  updateLastVisitedNavInfo: (section: SectionKey, path: string, state?: unknown, internalState?: unknown) => void;
-  getLastVisitedNavInfo: (section: SectionKey, defaultPath: string) => NavigationInfo;
-}
-
-// 创建 Context，提供默认值
-const LastVisitedContext = createContext<LastVisitedContextType | undefined>(undefined);
+// ContextType 和 Context 本身已从 definition 文件导入
+// interface LastVisitedContextType { ... }
+// const LastVisitedContext = createContext<LastVisitedContextType | undefined>(undefined);
 
 // 创建 Context Provider 组件
 interface LastVisitedProviderProps {
@@ -70,11 +58,4 @@ export const LastVisitedProvider: React.FC<LastVisitedProviderProps> = ({ childr
   );
 };
 
-// 创建自定义 Hook，方便在组件中使用 Context
-export const useLastVisited = (): LastVisitedContextType => {
-  const context = useContext(LastVisitedContext);
-  if (context === undefined) {
-    throw new Error('useLastVisited must be used within a LastVisitedProvider');
-  }
-  return context;
-};
+// 自定义 Hook 已移至 src/hooks/useLastVisited.ts

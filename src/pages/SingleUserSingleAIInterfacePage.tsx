@@ -12,7 +12,7 @@ import type {
   ChatPageStateSnapshot
 } from '../types';
 import type { LLMChatOptions } from '../../electron/llm/BaseLLM';
-import { useLastVisited } from '../contexts/LastVisitedContext'; // <-- 导入 Context Hook
+import { useLastVisited } from '../hooks/useLastVisited'; // <-- 修改导入路径
 
 
 const SingleUserSingleAIInterfacePage: React.FC = () => {
@@ -44,31 +44,48 @@ const SingleUserSingleAIInterfacePage: React.FC = () => {
 
   // --- 初始化和配置处理 Effect ---
   useEffect(() => {
-    // 检查 chatConfig 是否有效 (无论是初始传入还是从快照恢复)
-    if (!chatConfig) {
-      message.error('缺少聊天配置信息，请返回重新设置。');
-      navigate('/chat-mode-selection', { replace: true });
-      return;
-    }
+    let didCancel = false; // 添加一个清理标志
+
+    const initializeChat = () => {
+        console.log('[ChatInterface] Initializing chat...');
+        // 检查 chatConfig 是否有效 (无论是初始传入还是从快照恢复)
+        if (!chatConfig) {
+          if (!didCancel) { // 只有在组件未卸载时才执行跳转
+            message.error('缺少聊天配置信息，请返回重新设置。');
+            navigate('/chat-mode-selection', { replace: true });
+          }
+          return;
+        }
 
     // 校验模式和角色数量 (如果 chatConfig 有效)
-    if (chatConfig.mode !== 'singleUserSingleAI' || chatConfig.participatingCharacters.length !== 2 || !chatConfig.userCharacterId) {
-       message.error('配置信息与单人单 AI 模式不符，请返回重新设置。');
-       navigate('/chat-mode-selection', { replace: true });
-       return;
-    }
+        // 校验模式和角色数量 (如果 chatConfig 有效)
+        if (chatConfig.mode !== 'singleUserSingleAI' || chatConfig.participatingCharacters.length !== 2 || !chatConfig.userCharacterId) {
+           if (!didCancel) {
+             message.error('配置信息与单人单 AI 模式不符，请返回重新设置。');
+             navigate('/chat-mode-selection', { replace: true });
+           }
+           return;
+        }
 
     // --- 设置角色信息 ---
     const userChar = chatConfig.participatingCharacters.find(c => c.id === chatConfig.userCharacterId);
     const aiChar = chatConfig.participatingCharacters.find(c => c.id !== chatConfig.userCharacterId);
 
-    if (!userChar || !aiChar) {
-       message.error('无法确定用户或 AI 扮演的角色信息，请返回重新设置。');
-       navigate('/chat-mode-selection', { replace: true });
-       return;
-    }
-    setUserCharacter(userChar);
-    setAiCharacter(aiChar);
+        if (!userChar || !aiChar) {
+           if (!didCancel) {
+             message.error('无法确定用户或 AI 扮演的角色信息，请返回重新设置。');
+             navigate('/chat-mode-selection', { replace: true });
+           }
+           return;
+        }
+
+        // 只有在组件未卸载时才更新状态
+        if (!didCancel) {
+            setUserCharacter(userChar);
+            setAiCharacter(aiChar);
+        } else {
+            return; // 如果已卸载，则不继续执行后续逻辑
+        }
 
     // --- 如果不是从快照恢复，则需要构建 System Prompt 和生成 Session ID ---
     // 检查 restoredState 是否包含 chatConfig 来判断是否是恢复状态
@@ -113,16 +130,30 @@ prompt += `\n与你对话的是由人类用户扮演的角色: **${userChar.name
         console.log('[ChatInterface] Generated System Prompt:', prompt);
 
         const sessionId = `${chatConfig.script.id}-${Date.now()}`;
-        setChatSessionId(sessionId);
+        if (!didCancel) setChatSessionId(sessionId); // 更新状态前检查
         console.log(`[ChatInterface] Generated Chat Session ID: ${sessionId}`);
     } else {
-        console.log('[ChatInterface] Restored internal state:', restoredState);
+      console.log('[ChatInterface] Restored internal state:', restoredState);
+      // 如果是从快照恢复，确保 sessionId 也被正确设置
+      if (restoredState?.chatSessionId && !didCancel) {
+          setChatSessionId(restoredState.chatSessionId);
+      }
     }
 
     // TODO: 加载本地存储的对话历史逻辑可能需要调整或移除，因为状态现在由 Context 管理
     // 如果希望持久化存储，应该在 Context 更新时写入文件，并在 App 启动时从文件加载到 Context
 
-  }, [chatConfig, navigate, restoredState]); // 依赖 chatConfig 和 navigate
+    };
+
+    initializeChat(); // 调用初始化函数
+
+    // 清理函数：当组件卸载或依赖项变化时，设置取消标志
+    return () => {
+      didCancel = true;
+      console.log('[ChatInterface] Cleanup: Initialization effect cancelled.');
+    };
+    // 添加 restoredState 到依赖项以消除 ESLint 警告，同时保留 didCancel 标志
+  }, [chatConfig, navigate, restoredState]);
 
   // --- 保存状态到 Context Effect ---
   useEffect(() => {
@@ -212,7 +243,8 @@ prompt += `\n与你对话的是由人类用户扮演的角色: **${userChar.name
     } finally {
       setIsLoading(false);
     }
-  }, [aiCharacter, chatConfig, systemPrompt, chatSessionId]); // 移除 setMessages, 因为它在内部调用
+    // 将 inputValue 添加到依赖项
+  }, [aiCharacter, chatConfig, systemPrompt, chatSessionId, inputValue]);
 
   // --- 处理用户输入 (基本不变) ---
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -311,11 +343,18 @@ prompt += `\n与你对话的是由人类用户扮演的角色: **${userChar.name
         navigate('/chat-mode-selection', { replace: true });
         return null; // 或者显示错误组件
     }
-    return <Spin tip="加载聊天配置中..." style={{ display: 'block', marginTop: 50 }} />;
+    // 返回 Spin 组件包裹整个加载中的内容
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 'calc(100vh - 100px)' }}>
+        <Spin tip="加载聊天配置中..." size="large" />
+      </div>
+    );
   }
 
+  // 配置加载完成后，渲染实际内容
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 100px)' }}>
+      {/* 标题区域 */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', margin: '10px 0' }}>
         <Button
           icon={<ArrowLeftOutlined />}
@@ -373,8 +412,8 @@ prompt += `\n与你对话的是由人类用户扮演的角色: **${userChar.name
           type="primary"
           icon={<SendOutlined />}
           onClick={handleSendMessage}
-          loading={isLoading}
-          disabled={!inputValue.trim()}
+          loading={isLoading} // Spin 现在由 isLoading 控制，按钮本身的 loading 可以保留或移除
+          disabled={!inputValue.trim() || isLoading} // 增加 isLoading 判断
         >
           发送
         </Button>
