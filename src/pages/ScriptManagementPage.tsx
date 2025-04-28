@@ -1,16 +1,13 @@
 import React, { useState, useEffect } from 'react';
-// 移除 Modal, Form, Input, Select, uuidv4 的导入
 import { Table, Button, message, Popconfirm, Tag } from 'antd';
-import { useNavigate } from 'react-router-dom'; // 导入 useNavigate
+import { useNavigate } from 'react-router-dom';
 import { Script, AICharacter } from '../types';
-// uuid 不再需要
-// import { v4 as uuidv4 } from 'uuid';
 
-// columns 不再需要 handleEdit 函数，改为 navigateToEdit
+// columns 的 handleDelete 现在需要传入剧本标题，而不是 ID
 const columns = (
-  characters: AICharacter[],
-  handleDelete: (id: string) => void,
-  navigateToEdit: (id: string) => void // 新增导航到编辑页的函数
+  characters: AICharacter[], // 仍然需要角色列表来显示名字
+  handleDelete: (title: string) => void, // <-- 改为接收 title
+  navigateToEdit: (id: string) => void
 ) => [
   {
     title: '标题',
@@ -25,15 +22,14 @@ const columns = (
   },
   {
     title: '角色',
-    dataIndex: 'characterIds', // 改为使用 characterIds
+    dataIndex: 'characterIds',
     key: 'characterIds',
     render: (characterIds: string[] | undefined) => {
       if (!characterIds || characterIds.length === 0) return '-';
-      // 根据 ID 查找角色名称
       const characterNames = characterIds.map(id => {
         const character = characters.find(r => r.id === id);
-        return character ? character.name : `未知ID(${id.substring(0, 4)}...)`; // 如果找不到角色，显示未知
-      }).slice(0, 3); // 最多显示3个
+        return character ? character.name : `未知ID(${id.substring(0, 4)}...)`;
+      }).slice(0, 3);
 
       return (
         <>
@@ -45,17 +41,15 @@ const columns = (
       );
     },
   },
-  // 导演指令列已移除
   {
     title: '操作',
     key: 'action',
     render: (_: unknown, record: Script) => (
       <span>
-        {/* 点击编辑按钮时调用 navigateToEdit */}
         <Button type="link" onClick={() => navigateToEdit(record.id)}>编辑</Button>
         <Popconfirm
-          title="确定删除这个剧本吗？"
-          onConfirm={() => handleDelete(record.id)}
+          title={`确定删除剧本 "${record.title}" 吗？`} // 提示更明确
+          onConfirm={() => handleDelete(record.title)} // <-- 传入 title
           okText="确定"
           cancelText="取消"
         >
@@ -68,72 +62,66 @@ const columns = (
 
 const ScriptManagementPage: React.FC = () => {
   const [scripts, setScripts] = useState<Script[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [allCharacters, setAllCharacters] = useState<AICharacter[]>([]); // 仍然需要角色列表来显示名字
-  const navigate = useNavigate(); // 获取导航函数
+  const [loadingScripts, setLoadingScripts] = useState(false); // 区分剧本和角色的 loading
+  const [loadingCharacters, setLoadingCharacters] = useState(false);
+  const [allCharacters, setAllCharacters] = useState<AICharacter[]>([]);
+  const navigate = useNavigate();
 
-  // 移除 Modal 相关的状态和 Form hook
-  // const [isModalVisible, setIsModalVisible] = useState(false);
-  // const [editingScript, setEditingScript] = useState<Script | null>(null);
-  // const [form] = Form.useForm();
+  // const scriptsFileName = 'scripts.json'; // 不再需要
+  // const rolesFileName = 'characters.json'; // 不再需要
 
-  const scriptsFileName = 'scripts.json';
-  const rolesFileName = 'characters.json';
-
-  // 加载所有角色数据
+  // 加载所有角色数据 - 使用新的 listCharacters API
   const loadAllCharacters = async () => {
+    console.log('[ScriptManagementPage] Loading all characters...');
+    setLoadingCharacters(true);
     try {
-      const result = await window.electronAPI.readStore(rolesFileName, [] as AICharacter[]);
+      const result = await window.electronAPI.listCharacters();
       if (result.success && Array.isArray(result.data)) {
+        console.log('[ScriptManagementPage] Loaded characters:', result.data.length);
         setAllCharacters(result.data);
       } else {
         message.error(`加载角色列表失败: ${result.error || '未知错误'}`);
+        setAllCharacters([]);
       }
-    } catch (error) {
-      message.error(`调用读取角色存储时出错: ${error}`);
+    } catch (error: unknown) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      message.error(`调用 listCharacters 时出错: ${errorMsg}`);
+      setAllCharacters([]);
+    } finally {
+      setLoadingCharacters(false);
     }
   };
 
-  // 加载剧本数据
+  // 加载剧本数据 - 使用新的 listScripts API
   const loadScripts = async () => {
-    setLoading(true);
+    console.log('[ScriptManagementPage] Loading scripts...');
+    setLoadingScripts(true);
     try {
-      const result = await window.electronAPI.readStore(scriptsFileName, [] as Script[]);
+      const result = await window.electronAPI.listScripts();
       if (result.success && Array.isArray(result.data)) {
+         console.log('[ScriptManagementPage] Loaded scripts:', result.data.length);
         setScripts(result.data);
       } else {
-        message.error(`加载剧本失败: ${result.error || '未知错误'}`);
-        setScripts([]); // 出错时清空
+        message.error(`加载剧本列表失败: ${result.error || '未知错误'}`);
+        setScripts([]);
       }
-    } catch (error) {
-      message.error(`调用读取存储时出错: ${error}`);
-      setScripts([]); // 出错时清空
+    } catch (error: unknown) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      message.error(`调用 listScripts 时出错: ${errorMsg}`);
+      setScripts([]);
     } finally {
-      setLoading(false);
+      setLoadingScripts(false);
     }
   };
 
-  // 保存剧本数据
-  const saveScripts = async (updatedScripts: Script[]) => {
-    try {
-      const result = await window.electronAPI.writeStore(scriptsFileName, updatedScripts);
-      if (!result.success) {
-        message.error(`保存剧本失败: ${result.error || '未知错误'}`);
-      } else {
-        setScripts(updatedScripts); // 更新本地状态
-      }
-    } catch (error) {
-      message.error(`调用写入存储时出错: ${error instanceof Error ? error.message : String(error)}`);
-    }
-  };
+  // 不再需要 saveScripts 函数，列表页不负责批量保存
+  // const saveScripts = async (updatedScripts: Script[]) => { ... };
 
-  // 组件加载时读取剧本和角色数据 (逻辑不变)
+  // 组件加载时读取剧本和角色数据
   useEffect(() => {
     loadScripts();
     loadAllCharacters();
   }, []);
-
-  // 移除 showModal, handleOk, handleCancel 函数
 
   // 跳转到添加页面
   const navigateToAdd = () => {
@@ -145,27 +133,36 @@ const ScriptManagementPage: React.FC = () => {
     navigate(`/scripts/edit/${id}`);
   };
 
-  // 处理删除 (逻辑不变)
-  const handleDelete = (id: string) => {
-    const updatedScripts = scripts.filter(script => script.id !== id);
-    saveScripts(updatedScripts);
-    message.success('剧本已删除');
+  // 处理删除 - 使用新的 deleteScript API，传入剧本标题
+  const handleDelete = async (title: string) => {
+    console.log(`[ScriptManagementPage] Attempting to delete script: ${title}`);
+    try {
+      const result = await window.electronAPI.deleteScript(title);
+      if (result.success) {
+        message.success(`剧本 "${title}" 已删除`);
+        // 删除成功后重新加载列表
+        loadScripts();
+      } else {
+        message.error(`删除剧本 "${title}" 失败: ${result.error || '未知错误'}`);
+      }
+    } catch (error: unknown) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      message.error(`调用 deleteScript 时出错: ${errorMsg}`);
+    }
   };
 
   return (
     <div>
-      {/* 点击按钮跳转到添加页面 */}
       <Button type="primary" onClick={navigateToAdd} style={{ marginBottom: 16 }}>
         添加剧本
       </Button>
       <Table
-        columns={columns(allCharacters, handleDelete, navigateToEdit)} // 传入角色列表、删除和导航函数
+        columns={columns(allCharacters, handleDelete, navigateToEdit)}
         dataSource={scripts}
-        loading={loading || !allCharacters.length} // 角色列表加载中也显示 loading
+        loading={loadingScripts || loadingCharacters} // 任何一个在加载都显示 loading
         rowKey="id"
         pagination={false}
       />
-      {/* Modal 已移除 */}
     </div>
   );
 };

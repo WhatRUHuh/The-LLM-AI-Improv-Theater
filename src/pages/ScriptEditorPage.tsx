@@ -4,7 +4,7 @@ import { Form, Input, Button, message, Card, Typography, Space, Select } from 'a
 import { ArrowLeftOutlined } from '@ant-design/icons';
 import { Script, AICharacter } from '../types';
 import { v4 as uuidv4 } from 'uuid';
-import { useLastVisited } from '../contexts/LastVisitedContext'; // <-- 导入 Context Hook
+import { useLastVisited } from '../contexts/LastVisitedContext';
 
 // 定义页面内部状态快照的类型
 type ScriptEditorStateSnapshot = {
@@ -16,8 +16,8 @@ type ScriptEditorStateSnapshot = {
 const ScriptEditorPage: React.FC = () => {
   const { id: scriptIdFromParams } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const location = useLocation(); // <-- 获取 location
-  const { updateLastVisitedNavInfo } = useLastVisited(); // <-- 使用 Context Hook
+  const location = useLocation();
+  const { updateLastVisitedNavInfo } = useLastVisited();
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false); // 用于保存时的 loading
   const [dataLoading, setDataLoading] = useState(false); // 用于加载剧本/角色数据的 loading
@@ -27,8 +27,8 @@ const ScriptEditorPage: React.FC = () => {
   const isEditMode = restoredState?.isEditMode ?? !!scriptIdFromParams;
   const scriptId = restoredState?.scriptId ?? scriptIdFromParams;
 
-  const scriptsFileName = 'scripts.json';
-  const rolesFileName = 'characters.json';
+  // const scriptsFileName = 'scripts.json'; // 不再需要
+  // const rolesFileName = 'characters.json'; // 不再需要
 
   const [currentFormValues, setCurrentFormValues] = useState<Partial<Script>>(restoredState?.formValues ?? {});
   const isInitialLoad = useRef(true);
@@ -36,61 +36,72 @@ const ScriptEditorPage: React.FC = () => {
   // --- 数据加载或状态恢复 Effect ---
   useEffect(() => {
     const loadAllData = async () => {
-        setDataLoading(true); // 开始加载数据
+        setDataLoading(true);
         try {
-            // 1. 加载角色列表 (总是需要)
-            const charactersResult = await window.electronAPI.readStore(rolesFileName, [] as AICharacter[]);
+            // 1. 加载角色列表 (总是需要) - 使用新 API
+            console.log('[ScriptEditorPage] Loading characters...');
+            const charactersResult = await window.electronAPI.listCharacters();
             if (charactersResult.success && Array.isArray(charactersResult.data)) {
+                console.log('[ScriptEditorPage] Loaded characters:', charactersResult.data.length);
                 setAllCharacters(charactersResult.data);
             } else {
                 message.error(`加载角色列表失败: ${charactersResult.error || '未知错误'}`);
+                setAllCharacters([]); // 出错时清空
             }
 
             // 2. 根据情况加载剧本或恢复状态
-            const isActualNavigation = location.key !== 'default'; // 检查是否是实际导航触发的渲染
+            const isActualNavigation = location.key !== 'default';
             if (restoredState && restoredState.formValues && isActualNavigation) {
                 console.log('[ScriptEditorPage] Restoring state from context:', restoredState);
                 form.setFieldsValue(restoredState.formValues);
                 setCurrentFormValues(restoredState.formValues);
             } else if (isEditMode && scriptId && isInitialLoad.current) {
                 console.log('[ScriptEditorPage] Loading script data for editing...');
-                const scriptsResult = await window.electronAPI.readStore(scriptsFileName, [] as Script[]);
+                // 使用 listScripts 获取所有剧本，然后在前端查找
+                const scriptsResult = await window.electronAPI.listScripts();
                 if (scriptsResult.success && Array.isArray(scriptsResult.data)) {
                     const scriptToEdit = scriptsResult.data.find(script => script.id === scriptId);
                     if (scriptToEdit) {
+                        console.log('[ScriptEditorPage] Found script to edit:', scriptToEdit);
                         form.setFieldsValue(scriptToEdit);
                         setCurrentFormValues(scriptToEdit);
                     } else {
-                        message.error('未找到要编辑的剧本！');
+                        message.error(`ID 为 ${scriptId} 的剧本未找到！`);
                         navigate('/scripts');
                     }
                 } else {
-                    message.error(`加载剧本数据失败: ${scriptsResult.error || '未知错误'}`);
+                    message.error(`加载剧本列表失败: ${scriptsResult.error || '未知错误'}`);
                     navigate('/scripts');
                 }
             } else if (!isEditMode && isInitialLoad.current) {
                 console.log('[ScriptEditorPage] Initializing for add mode...');
-                const defaultValues = { characterIds: [] }; // 添加模式默认值
+                const defaultValues = { characterIds: [], tags: [] }; // 添加模式默认值
                 form.setFieldsValue(defaultValues);
                 setCurrentFormValues(defaultValues);
             }
-        } catch (error) {
-            message.error(`加载页面数据时出错: ${error instanceof Error ? error.message : String(error)}`);
-            if (isEditMode) navigate('/scripts'); // 出错时返回列表
+        } catch (error: unknown) {
+            const errorMsg = error instanceof Error ? error.message : String(error);
+            message.error(`加载页面数据时出错: ${errorMsg}`);
+            if (isEditMode) navigate('/scripts');
         } finally {
-            setDataLoading(false); // 数据加载结束
-            isInitialLoad.current = false; // 标记为非首次加载
+            setDataLoading(false);
+            isInitialLoad.current = false;
         }
     };
 
     loadAllData();
 
-  }, [isEditMode, scriptId, navigate, form, restoredState, location.key]); // 依赖项
+  }, [isEditMode, scriptId, navigate, form, restoredState, location.key]);
 
   // --- 监听表单值变化并更新 currentFormValues ---
   const handleFormValuesChange = (_changedValues: unknown, allValues: Partial<Script>) => {
       if (!isInitialLoad.current) {
-          setCurrentFormValues(allValues);
+          // 确保 ID 不会被表单覆盖
+          const valuesToStore = { ...allValues };
+          if (isEditMode && scriptId && !valuesToStore.id) {
+              valuesToStore.id = scriptId;
+          }
+          setCurrentFormValues(valuesToStore);
       }
   };
 
@@ -102,6 +113,7 @@ const ScriptEditorPage: React.FC = () => {
             isEditMode: isEditMode,
             scriptId: scriptId,
         };
+        console.log('[ScriptEditorPage] Saving snapshot to context:', currentStateSnapshot);
         updateLastVisitedNavInfo('scripts', location.pathname, undefined, currentStateSnapshot);
     }
   }, [currentFormValues, isEditMode, scriptId, updateLastVisitedNavInfo, location.pathname, dataLoading]);
@@ -109,56 +121,45 @@ const ScriptEditorPage: React.FC = () => {
 
   // --- 处理表单提交 (保存) ---
   const handleFinish = async (values: Partial<Script>) => {
-    // 校验必填项
     if (!values.title) {
         message.error('请输入剧本标题！');
         return;
     }
 
-    setLoading(true); // 保存操作的 loading
+    setLoading(true);
     try {
-      const allScriptsResult = await window.electronAPI.readStore(scriptsFileName, [] as Script[]);
-      if (!allScriptsResult.success || !Array.isArray(allScriptsResult.data)) {
-         message.error(`加载现有剧本列表失败: ${allScriptsResult.error || '未知错误'}`);
-         setLoading(false);
-         return;
-      }
+      // 准备要保存的剧本数据
+      const scriptToSave: Script = {
+        ...values, // 包含表单所有字段
+        id: isEditMode && scriptId ? scriptId : uuidv4(), // 编辑模式用现有 ID，添加模式生成新 ID
+        title: values.title, // 确保必填项存在 (TS 需要)
+        // 确保其他可选字段如果为 undefined 或空数组/字符串，也正确传递
+        scene: values.scene || undefined,
+        characterIds: values.characterIds || [],
+        genre: values.genre || undefined,
+        setting: values.setting || undefined,
+        synopsis: values.synopsis || undefined,
+        mood: values.mood || undefined,
+        themes: values.themes || undefined,
+        tags: values.tags || [],
+      };
 
-      let updatedScripts: Script[];
-      const currentScripts = allScriptsResult.data;
-      const selectedCharacterIds = values.characterIds || [];
+      console.log('[ScriptEditorPage] Attempting to save script:', scriptToSave);
 
-      // 类型断言 (假设校验后满足要求)
-      const finalValues = values as Omit<Script, 'id'>;
+      // 调用新的 saveScript API
+      const saveResult = await window.electronAPI.saveScript(scriptToSave);
 
-      if (isEditMode && scriptId) {
-        updatedScripts = currentScripts.map(script =>
-          script.id === scriptId ? {
-             ...script, // 保留旧数据（如 id）
-             ...finalValues, // 应用表单所有新值
-             characterIds: selectedCharacterIds, // 确保 characterIds 被更新
-             id: scriptId // 确保 ID 不变
-            } : script
-        );
-      } else {
-        const newScript: Script = {
-          id: uuidv4(),
-          ...finalValues,
-          characterIds: selectedCharacterIds,
-        };
-        updatedScripts = [...currentScripts, newScript];
-      }
-
-      const saveResult = await window.electronAPI.writeStore(scriptsFileName, updatedScripts);
       if (saveResult.success) {
         message.success(isEditMode ? '剧本已更新' : '剧本已添加');
-        updateLastVisitedNavInfo('scripts', '/scripts', undefined, undefined); // 清除状态
-        navigate('/scripts');
+        // 清除当前版块的最后访问状态，以便下次从列表页进入
+        updateLastVisitedNavInfo('scripts', '/scripts', undefined, undefined);
+        navigate('/scripts'); // 保存成功后返回列表页
       } else {
         message.error(`保存剧本失败: ${saveResult.error || '未知错误'}`);
       }
-    } catch (error) {
-      message.error(`保存剧本时出错: ${error instanceof Error ? error.message : String(error)}`);
+    } catch (error: unknown) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      message.error(`调用 saveScript 时出错: ${errorMsg}`);
     } finally {
       setLoading(false);
     }
@@ -180,7 +181,8 @@ const ScriptEditorPage: React.FC = () => {
         form={form}
         layout="vertical"
         onFinish={handleFinish}
-        onValuesChange={handleFormValuesChange} // 监听变化
+        onValuesChange={handleFormValuesChange}
+        initialValues={currentFormValues} // 设置初始值
       >
         <Form.Item name="title" label="剧本标题" rules={[{ required: true, message: '请输入剧本标题!' }]}>
           <Input />
@@ -209,6 +211,7 @@ const ScriptEditorPage: React.FC = () => {
             style={{ width: '100%' }}
             placeholder="输入标签后按回车确认，例如：宫斗, 权谋, 反转"
             tokenSeparators={[',']}
+            // options={[]} // 可以提供一些预设标签选项
           />
         </Form.Item>
         <Form.Item name="characterIds" label="选择角色 (可选)">

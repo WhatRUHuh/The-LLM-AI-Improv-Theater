@@ -1,23 +1,27 @@
-// 告诉 TypeScript 全局的 Window 接口上有一个 electronAPI 对象
-
-import type { LLMChatOptions, LLMResponse } from '../electron/llm/BaseLLM'; // <-- 导入 LLM 类型
-import type { ProxyConfig } from '../electron/proxyManager'; // <-- 导入 ProxyConfig 类型
+// src/electron.d.ts
+import type { LLMChatOptions, LLMResponse } from '../electron/llm/BaseLLM';
+import type { ProxyConfig } from '../electron/proxyManager';
+// 导入你的核心类型，确保与 preload 和后端一致
+import type { AICharacter, Script } from './types';
 
 declare global {
   interface Window {
     electronAPI: {
-      // 定义 readStore 方法的类型签名
-      readStore: (fileName: string, defaultValue: unknown)
-        => Promise<{ success: boolean; data?: unknown; error?: string }>;
-      // 定义 writeStore 方法的类型签名
-      writeStore: (fileName: string, data: unknown)
-        => Promise<{ success: boolean; error?: string }>;
-      // 新增：列出聊天会话文件的类型声明
-      listChatSessions: ()
-        => Promise<{ success: boolean; data?: string[]; error?: string }>;
-      // 新增：删除聊天会话文件的类型声明
-      deleteChatSession: (fileName: string)
-        => Promise<{ success: boolean; error?: string }>;
+      // --- Generic Store API (for config, chat history etc.) ---
+      readStore: (fileName: string, defaultValue: unknown) => Promise<{ success: boolean; data?: unknown; error?: string }>;
+      writeStore: (fileName: string, data: unknown) => Promise<{ success: boolean; error?: string }>;
+      listChatSessions: () => Promise<{ success: boolean; data?: string[]; error?: string }>;
+      deleteChatSession: (fileName: string) => Promise<{ success: boolean; error?: string }>;
+
+      // --- Character Data API ---
+      listCharacters: () => Promise<{ success: boolean; data?: AICharacter[]; error?: string }>;
+      saveCharacter: (character: AICharacter) => Promise<{ success: boolean; error?: string }>;
+      deleteCharacter: (characterName: string) => Promise<{ success: boolean; error?: string }>;
+
+      // --- Script Data API ---
+      listScripts: () => Promise<{ success: boolean; data?: Script[]; error?: string }>;
+      saveScript: (script: Script) => Promise<{ success: boolean; error?: string }>;
+      deleteScript: (scriptTitle: string) => Promise<{ success: boolean; error?: string }>;
 
       // --- LLM 服务相关 API 类型声明 ---
       llmGetServices: ()
@@ -30,16 +34,12 @@ declare global {
         => Promise<{ success: boolean; error?: string }>;
       llmGetAvailableModels: (providerId: string)
         => Promise<{ success: boolean; data?: string[]; error?: string }>;
-      // 新增获取已保存 Keys 的类型声明
       llmGetSavedKeys: ()
         => Promise<{ success: boolean; data?: Record<string, string | null>; error?: string }>;
-
-      // 新增：获取和保存自定义模型列表的类型声明
       llmGetCustomModels: (providerId: string)
         => Promise<{ success: boolean; data?: string[]; error?: string }>;
       llmSaveCustomModels: (providerId: string, models: string[])
         => Promise<{ success: boolean; error?: string }>;
-      // 新增：调用聊天生成 API 的类型声明
       llmGenerateChat: (providerId: string, options: LLMChatOptions)
         => Promise<{ success: boolean; data?: LLMResponse; error?: string }>;
 
@@ -47,10 +47,10 @@ declare global {
       proxyGetConfig: ()
         => Promise<{
              success: boolean;
-             data?: ProxyConfig; // <-- 使用导入的类型
+             data?: ProxyConfig;
              error?: string
            }>;
-     proxySetConfig: (config: ProxyConfig) // <-- 使用导入的类型
+     proxySetConfig: (config: ProxyConfig)
         => Promise<{ success: boolean; error?: string }>;
       proxyTestConnection: ()
         => Promise<{
@@ -64,7 +64,6 @@ declare global {
              };
              error?: string;
            }>;
-
 
       // 如果未来在 preload.ts 中暴露了更多 API，也需要在这里添加类型声明
     };

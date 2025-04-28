@@ -4,10 +4,10 @@ import { Table, Button, message, Popconfirm } from 'antd'; // 移除了 Tag
 import { useNavigate } from 'react-router-dom';
 import { AICharacter } from '../types';
 
-// columns 不再需要 handleEdit 函数，改为 navigateToEdit
+// columns 的 handleDelete 现在需要传入角色名称，而不是 ID
 const columns = (
-  handleDelete: (id: string) => void,
-  navigateToEdit: (id: string) => void // 新增导航到编辑页的函数
+  handleDelete: (name: string) => void, // <-- 改为接收 name
+  navigateToEdit: (id: string) => void
 ) => [
   // 头像列可以取消注释并添加 Avatar 导入
   // {
@@ -45,8 +45,8 @@ const columns = (
         {/* 点击编辑按钮时调用 navigateToEdit */}
         <Button type="link" onClick={() => navigateToEdit(record.id)}>编辑</Button>
         <Popconfirm
-          title="确定删除这个角色吗？"
-          onConfirm={() => handleDelete(record.id)}
+          title={`确定删除角色 "${record.name}" 吗？`} // 提示更明确
+          onConfirm={() => handleDelete(record.name)} // <-- 传入 name
           okText="确定"
           cancelText="取消"
         >
@@ -67,46 +67,32 @@ const CharacterManagementPage: React.FC = () => {
   // const [editingRole, setEditingRole] = useState<AICharacter | null>(null);
   // const [form] = Form.useForm();
 
-  const rolesFileName = 'characters.json'; // 使用统一的文件名
+  // const rolesFileName = 'characters.json'; // 不再需要这个
 
-  // 加载角色数据
+  // 加载角色数据 - 使用新的 listCharacters API
   const loadCharacters = async () => {
     setLoading(true);
     try {
-      // 注意：window.electronAPI 是在 preload.ts 中暴露的
-      const result = await window.electronAPI.readStore(rolesFileName, [] as AICharacter[]);
+      const result = await window.electronAPI.listCharacters();
       if (result.success && Array.isArray(result.data)) {
+        console.log('[CharacterManagementPage] Loaded characters:', result.data);
         setCharacters(result.data);
       } else {
-        message.error(`加载角色失败: ${result.error || '未知错误'}`);
-        setCharacters([]); // 出错时清空
+        message.error(`加载角色列表失败: ${result.error || '未知错误'}`);
+        setCharacters([]);
       }
-    } catch (error) {
-      message.error(`调用读取存储时出错: ${error}`);
-      setCharacters([]); // 出错时清空
+    } catch (error: unknown) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      message.error(`调用 listCharacters 时出错: ${errorMsg}`);
+      setCharacters([]);
     } finally {
       setLoading(false);
     }
   };
 
-  // 保存角色数据
-  const saveCharacters = async (updatedCharacters: AICharacter[]) => {
-    console.log('[CharacterManagementPage] Attempting to save characters:', updatedCharacters); // <-- 添加日志
-    try {
-      // 调用后台写入存储
-      const result = await window.electronAPI.writeStore(rolesFileName, updatedCharacters);
-      console.log('[CharacterManagementPage] writeStore result:', result); // <-- 添加日志
-      if (!result.success) {
-        message.error(`保存角色失败: ${result.error || '未知错误'}`);
-      } else {
-       // message.success('角色已保存'); // 可以选择性提示
-       setCharacters(updatedCharacters); // 更新本地状态
-      }
-    } catch (error) {
-      console.error('[CharacterManagementPage] Error calling writeStore:', error); // <-- 修改为 console.error
-      message.error(`调用写入存储时出错: ${error instanceof Error ? error.message : String(error)}`);
-    }
-  };
+  // 不再需要 saveCharacters 函数，因为列表页不负责批量保存
+  // 保存操作由编辑/添加页面通过 saveCharacter API 完成
+  // const saveCharacters = async (updatedCharacters: AICharacter[]) => { ... };
 
   // 组件加载时读取数据 (逻辑不变)
   useEffect(() => {
@@ -125,11 +111,22 @@ const CharacterManagementPage: React.FC = () => {
     navigate(`/characters/edit/${id}`);
   };
 
-  // 处理删除 (逻辑不变)
-  const handleDelete = (id: string) => {
-    const updatedCharacters = characters.filter(character => character.id !== id);
-    saveCharacters(updatedCharacters);
-    message.success('角色已删除');
+  // 处理删除 - 使用新的 deleteCharacter API，传入角色名称
+  const handleDelete = async (name: string) => { // <-- 改为接收 name，设为 async
+    console.log(`[CharacterManagementPage] Attempting to delete character: ${name}`);
+    try {
+      const result = await window.electronAPI.deleteCharacter(name);
+      if (result.success) {
+        message.success(`角色 "${name}" 已删除`);
+        // 删除成功后重新加载列表
+        loadCharacters();
+      } else {
+        message.error(`删除角色 "${name}" 失败: ${result.error || '未知错误'}`);
+      }
+    } catch (error: unknown) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      message.error(`调用 deleteCharacter 时出错: ${errorMsg}`);
+    } // <-- 补上这个丢失的括号！哼！
   };
 
   return (

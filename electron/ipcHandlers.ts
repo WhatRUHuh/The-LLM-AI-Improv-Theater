@@ -7,17 +7,58 @@ import { LLMChatOptions, LLMResponse } from './llm/BaseLLM'; // <-- 导入 LLM �
 import { llmServiceManager } from './llm/LLMServiceManager'; // 导入 LLM 服务管理器
 import { proxyManager, ProxyConfig } from './ProxyManager'; // 导入代理管理器
 import { getSystemProxy } from 'os-proxy-config'; // 导入系统代理获取函数
+// 导入你的角色和剧本类型 (假设在 ../src/types)
+import type { AICharacter, Script } from '../src/types';
 
-// --- 文件名常量 ---
+// --- 文件名/目录常量 ---
 const API_KEYS_FILE = 'apiKeys.json';
 const CUSTOM_MODELS_FILE = 'customModels.json';
 const PROXY_CONFIG_FILE = 'proxyConfig.json';
-const SCRIPTS_FILE = 'scripts.json'; // 添加已知配置文件常量
-const CHARACTERS_FILE = 'characters.json'; // 添加已知配置文件常量
+// const SCRIPTS_FILE = 'scripts.json'; // <-- 不再需要这个了
+// const CHARACTERS_FILE = 'characters.json'; // <-- 也不再需要了
+const KNOWN_CONFIG_FILES = new Set([API_KEYS_FILE, CUSTOM_MODELS_FILE, PROXY_CONFIG_FILE]); // 更新已知配置文件列表
 
-// --- 辅助函数获取存储目录 ---
-// (jsonStore.ts 内部也有，但在这里直接用更方便)
-const getStorageDir = () => path.join(app.getPath('userData'), 'TheLLMAIImprovTheaterData');
+const STORAGE_DIR_NAME = 'TheLLMAIImprovTheaterData';
+const CHARACTERS_DIR_NAME = 'characters';
+const SCRIPTS_DIR_NAME = 'scripts';
+
+// --- 辅助函数 ---
+const getStorageDir = () => path.join(app.getPath('userData'), STORAGE_DIR_NAME);
+const getCharactersDir = () => path.join(getStorageDir(), CHARACTERS_DIR_NAME);
+const getScriptsDir = () => path.join(getStorageDir(), SCRIPTS_DIR_NAME);
+
+// 文件名清理函数 (移除或替换非法字符)
+function sanitizeFilename(name: string): string {
+  if (!name) return '_untitled_'; // 防止空名
+  // 移除 Windows 和 macOS/Linux 中的非法字符，并将空格替换为下划线
+  // 同时移除可能导致路径问题的点 '.'
+  const baseName = name.replace(/\.[^/.]+$/, ""); // 移除扩展名（如果有）
+  // const extension = name.includes('.') ? name.substring(name.lastIndexOf('.')) : ''; // 不再需要保留原始扩展名，因为我们强制 .json
+  const cleanedBase = baseName.replace(/[<>:"/\\|?*]/g, '_').replace(/\s+/g, '_').replace(/\./g, '_');
+  // 防止文件名过长 (Windows 路径限制约为 260 字符，文件名本身限制更宽松，但保守点)
+  const finalName = cleanedBase.substring(0, 100) + '.json'; // 限制基础名长度并加上 .json
+  console.log(`[Sanitize] Original: "${name}", Sanitized: "${finalName}"`);
+  return finalName;
+}
+
+
+// 确保目录存在的辅助函数
+async function ensureDirExists(dirPath: string): Promise<void> {
+  try {
+    await fs.access(dirPath);
+    console.log(`[EnsureDir] Directory exists: ${dirPath}`);
+  } catch (error) { // 使用 unknown 或更具体的类型检查
+    // 检查错误是否是包含 code 属性的对象
+    if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') {
+      console.log(`[EnsureDir] Directory not found, creating: ${dirPath}`);
+      await fs.mkdir(dirPath, { recursive: true });
+      console.log(`[EnsureDir] Directory created: ${dirPath}`);
+    } else {
+      console.error(`[EnsureDir] Error accessing/creating directory ${dirPath}:`, error);
+      throw error;
+    }
+  }
+}
 
 
 // --- 类型定义 ---
@@ -29,9 +70,19 @@ type CustomModelsStore = Record<string, string[]>;
 export function registerStoreHandlers(): void {
   // 处理读取存储请求
   ipcMain.handle('read-store', async (event, fileName: string, defaultValue: unknown) => {
-    console.log(`IPC received: read-store for ${fileName}`);
+    console.log(`[IPC Handler] Received 'read-store' for ${fileName}`);
+    // 安全检查：阻止通过此通用接口读取角色/剧本目录下的文件
+    const requestedPath = path.join(getStorageDir(), fileName);
+    const charactersDir = getCharactersDir();
+    const scriptsDir = getScriptsDir();
+    if (requestedPath.startsWith(charactersDir) || requestedPath.startsWith(scriptsDir)) {
+        console.error(`[IPC Handler] Attempted to read from restricted directory via read-store: ${fileName}`);
+        return { success: false, error: '不允许通过此接口访问角色或剧本文件' };
+    }
+
     try {
-      const data = await readStore(fileName, defaultValue);
+      const data = await readStore(fileName, defaultValue); // readStore 内部会处理路径拼接
+      console.log(`[IPC Handler] readStore for ${fileName} successful.`);
       return { success: true, data };
     } catch (error: unknown) {
       console.error(`IPC error handling read-store for ${fileName}:`, error);
@@ -42,10 +93,20 @@ export function registerStoreHandlers(): void {
 
   // 处理写入存储请求
   ipcMain.handle('write-store', async (event, fileName: string, data: unknown) => {
-    console.log(`[IPC Handler] Received 'write-store' for ${fileName} with data:`, JSON.stringify(data, null, 2));
+    console.log(`[IPC Handler] Received 'write-store' for ${fileName}`);
+     // 安全检查：阻止通过此通用接口写入角色/剧本目录下的文件
+     const requestedPath = path.join(getStorageDir(), fileName);
+     const charactersDir = getCharactersDir();
+     const scriptsDir = getScriptsDir();
+     if (requestedPath.startsWith(charactersDir) || requestedPath.startsWith(scriptsDir)) {
+         console.error(`[IPC Handler] Attempted to write to restricted directory via write-store: ${fileName}`);
+         return { success: false, error: '不允许通过此接口写入角色或剧本文件' };
+     }
+     console.log(`[IPC Handler] Data to write for ${fileName}:`, JSON.stringify(data).substring(0, 200) + '...'); // Log truncated data
+
     try {
-      await writeStore(fileName, data);
-      console.log(`[IPC Handler] writeStore function for ${fileName} completed successfully.`);
+      await writeStore(fileName, data); // writeStore 内部会处理路径拼接和目录创建
+      console.log(`[IPC Handler] writeStore for ${fileName} completed successfully.`);
       return { success: true };
     } catch (error: unknown) {
       console.error(`IPC error handling write-store for ${fileName}:`, error);
@@ -73,9 +134,8 @@ export function registerStoreHandlers(): void {
       }
 
       const files = await fs.readdir(storageDir);
-      // 过滤出 .json 文件，并排除已知的配置文件
-      const knownConfigFiles = new Set([API_KEYS_FILE, CUSTOM_MODELS_FILE, PROXY_CONFIG_FILE, SCRIPTS_FILE, CHARACTERS_FILE]);
-      const sessionFiles = files.filter(file => file.endsWith('.json') && !knownConfigFiles.has(file));
+      // 过滤出 .json 文件，并排除已知的配置文件 (使用更新后的 KNOWN_CONFIG_FILES)
+      const sessionFiles = files.filter(file => file.endsWith('.json') && !KNOWN_CONFIG_FILES.has(file));
       console.log('[IPC Handler] Found session files:', sessionFiles);
       return { success: true, data: sessionFiles };
     } catch (error: unknown) {
@@ -93,9 +153,8 @@ export function registerStoreHandlers(): void {
         console.error(`[IPC Handler] Invalid or potentially unsafe filename for deletion: ${fileName}`);
         return { success: false, error: '无效的文件名' };
     }
-    // 再次确认不是要删除关键配置文件
-     const knownConfigFiles = new Set([API_KEYS_FILE, CUSTOM_MODELS_FILE, PROXY_CONFIG_FILE, SCRIPTS_FILE, CHARACTERS_FILE]);
-     if (knownConfigFiles.has(fileName)) {
+    // 再次确认不是要删除关键配置文件 (使用更新后的 KNOWN_CONFIG_FILES)
+     if (KNOWN_CONFIG_FILES.has(fileName)) {
         console.error(`[IPC Handler] Attempted to delete a known config file: ${fileName}`);
         return { success: false, error: '不能删除核心配置文件' };
      }
@@ -120,7 +179,207 @@ export function registerStoreHandlers(): void {
   });
 
 
-  console.log('Store IPC handlers registered.');
+  console.log('Generic Store IPC handlers registered.');
+}
+
+/**
+ * 注册与角色数据相关的 IPC 处理程序
+ */
+export function registerCharacterHandlers(): void {
+  const charactersDir = getCharactersDir();
+
+  // 列出所有角色
+  ipcMain.handle('list-characters', async () => {
+    console.log('[IPC Handler] Received list-characters');
+    try {
+      await ensureDirExists(charactersDir); // 确保目录存在
+      const files = await fs.readdir(charactersDir);
+      const characterFiles = files.filter(file => file.endsWith('.json'));
+      console.log('[IPC Handler] Found character files:', characterFiles);
+
+      const characters: AICharacter[] = [];
+      for (const file of characterFiles) {
+        const filePath = path.join(charactersDir, file);
+        try {
+          const content = await fs.readFile(filePath, 'utf-8');
+          const character = JSON.parse(content) as AICharacter;
+          // 这里可以添加校验逻辑，确保解析出的对象符合 AICharacter 结构
+          if (character && character.id && character.name) {
+             characters.push(character);
+          } else {
+             console.warn(`[IPC Handler] Skipping invalid character file: ${file}`);
+          }
+        } catch (readError) {
+          console.error(`[IPC Handler] Error reading or parsing character file ${file}:`, readError);
+          // 可以选择跳过这个文件或返回错误
+        }
+      }
+      console.log(`[IPC Handler] Successfully listed ${characters.length} characters.`);
+      return { success: true, data: characters };
+    } catch (error: unknown) {
+      console.error('[IPC Handler] Error handling list-characters:', error);
+      const message = error instanceof Error ? error.message : '列出角色时发生未知错误';
+      return { success: false, error: message };
+    }
+  });
+
+  // 保存角色 (新增或更新)
+  ipcMain.handle('save-character', async (event, character: AICharacter) => {
+    console.log(`[IPC Handler] Received save-character for: ${character?.name} (ID: ${character?.id})`);
+    if (!character || !character.id || !character.name) {
+      return { success: false, error: '无效的角色数据' };
+    }
+
+    const sanitizedName = sanitizeFilename(character.name); // 使用名字生成文件名
+    const filePath = path.join(charactersDir, sanitizedName);
+    console.log(`[IPC Handler] Saving character to: ${filePath}`);
+
+    try {
+      await ensureDirExists(charactersDir); // 确保目录存在
+
+      // 注意：这里没有处理旧文件名删除逻辑。如果角色改名，旧文件会残留。
+      // 解决方案：
+      // 1. 前端在调用 save 时，如果知道是改名，先调用 delete 删除旧名字的文件。
+      // 2. 后端维护一个 ID -> 文件名的映射 (复杂)。
+      // 3. 放弃使用名字做文件名，改用 ID (最简单可靠，但违背用户要求)。
+      // 暂时采用覆盖逻辑，接受改名后旧文件残留的问题。
+
+      await fs.writeFile(filePath, JSON.stringify(character, null, 2), 'utf-8');
+      console.log(`[IPC Handler] Character ${character.name} saved successfully to ${sanitizedName}.`);
+      return { success: true };
+    } catch (error: unknown) {
+      console.error(`[IPC Handler] Error handling save-character for ${character.name}:`, error);
+      const message = error instanceof Error ? error.message : '保存角色时发生未知错误';
+      return { success: false, error: message };
+    }
+  });
+
+  // 删除角色
+  ipcMain.handle('delete-character', async (event, characterName: string) => {
+    console.log(`[IPC Handler] Received delete-character for: ${characterName}`);
+    if (!characterName) {
+      return { success: false, error: '未提供要删除的角色名称' };
+    }
+
+    const sanitizedName = sanitizeFilename(characterName);
+    const filePath = path.join(charactersDir, sanitizedName);
+    console.log(`[IPC Handler] Deleting character file: ${filePath}`);
+
+    try {
+      await ensureDirExists(charactersDir); // 确保目录存在，虽然删除不存在的文件不报错，但日志清晰
+      await fs.unlink(filePath);
+      console.log(`[IPC Handler] Character file ${sanitizedName} deleted successfully.`);
+      return { success: true };
+    } catch (error: unknown) {
+       // 如果文件不存在，也算成功（幂等性）
+       if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') {
+           console.log(`[IPC Handler] Character file ${sanitizedName} not found for deletion, considering it success.`);
+           return { success: true };
+       }
+      console.error(`[IPC Handler] Error handling delete-character for ${characterName}:`, error);
+      const message = error instanceof Error ? error.message : '删除角色时发生未知错误';
+      return { success: false, error: message };
+    }
+  });
+
+  console.log('Character IPC handlers registered.');
+}
+
+
+/**
+ * 注册与剧本数据相关的 IPC 处理程序
+ */
+export function registerScriptHandlers(): void {
+  const scriptsDir = getScriptsDir();
+
+  // 列出所有剧本
+  ipcMain.handle('list-scripts', async () => {
+    console.log('[IPC Handler] Received list-scripts');
+    try {
+      await ensureDirExists(scriptsDir); // 确保目录存在
+      const files = await fs.readdir(scriptsDir);
+      const scriptFiles = files.filter(file => file.endsWith('.json'));
+      console.log('[IPC Handler] Found script files:', scriptFiles);
+
+      const scripts: Script[] = [];
+      for (const file of scriptFiles) {
+        const filePath = path.join(scriptsDir, file);
+        try {
+          const content = await fs.readFile(filePath, 'utf-8');
+          const script = JSON.parse(content) as Script;
+          // 这里可以添加校验逻辑，确保解析出的对象符合 Script 结构
+          if (script && script.id && script.title) {
+             scripts.push(script);
+          } else {
+             console.warn(`[IPC Handler] Skipping invalid script file: ${file}`);
+          }
+        } catch (readError) {
+          console.error(`[IPC Handler] Error reading or parsing script file ${file}:`, readError);
+        }
+      }
+       console.log(`[IPC Handler] Successfully listed ${scripts.length} scripts.`);
+      return { success: true, data: scripts };
+    } catch (error: unknown) {
+      console.error('[IPC Handler] Error handling list-scripts:', error);
+      const message = error instanceof Error ? error.message : '列出剧本时发生未知错误';
+      return { success: false, error: message };
+    }
+  });
+
+  // 保存剧本 (新增或更新)
+  ipcMain.handle('save-script', async (event, script: Script) => {
+    console.log(`[IPC Handler] Received save-script for: ${script?.title} (ID: ${script?.id})`);
+    if (!script || !script.id || !script.title) {
+      return { success: false, error: '无效的剧本数据' };
+    }
+
+    const sanitizedName = sanitizeFilename(script.title); // 使用标题生成文件名
+    const filePath = path.join(scriptsDir, sanitizedName);
+     console.log(`[IPC Handler] Saving script to: ${filePath}`);
+
+    try {
+      await ensureDirExists(scriptsDir); // 确保目录存在
+
+      // 同样存在改名后旧文件残留的问题
+      await fs.writeFile(filePath, JSON.stringify(script, null, 2), 'utf-8');
+      console.log(`[IPC Handler] Script ${script.title} saved successfully to ${sanitizedName}.`);
+      return { success: true };
+    } catch (error: unknown) {
+      console.error(`[IPC Handler] Error handling save-script for ${script.title}:`, error);
+      const message = error instanceof Error ? error.message : '保存剧本时发生未知错误';
+      return { success: false, error: message };
+    }
+  });
+
+  // 删除剧本
+  ipcMain.handle('delete-script', async (event, scriptTitle: string) => {
+    console.log(`[IPC Handler] Received delete-script for: ${scriptTitle}`);
+     if (!scriptTitle) {
+      return { success: false, error: '未提供要删除的剧本标题' };
+    }
+
+    const sanitizedName = sanitizeFilename(scriptTitle);
+    const filePath = path.join(scriptsDir, sanitizedName);
+    console.log(`[IPC Handler] Deleting script file: ${filePath}`);
+
+    try {
+      await ensureDirExists(scriptsDir);
+      await fs.unlink(filePath);
+      console.log(`[IPC Handler] Script file ${sanitizedName} deleted successfully.`);
+      return { success: true };
+    } catch (error: unknown) {
+       // 如果文件不存在，也算成功（幂等性）
+       if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') {
+           console.log(`[IPC Handler] Script file ${sanitizedName} not found for deletion, considering it success.`);
+           return { success: true };
+       }
+      console.error(`[IPC Handler] Error handling delete-script for ${scriptTitle}:`, error);
+      const message = error instanceof Error ? error.message : '删除剧本时发生未知错误';
+      return { success: false, error: message };
+    }
+  });
+
+  console.log('Script IPC handlers registered.');
 }
 
 /**
@@ -488,3 +747,9 @@ export function registerProxyHandlers(): void {
 }
 
 // 注意：确保在 main.ts 中调用所有 register...Handlers() 函数
+// 例如:
+// registerStoreHandlers();
+// registerCharacterHandlers(); // <-- 新增
+// registerScriptHandlers(); // <-- 新增
+// registerLLMServiceHandlers();
+// registerProxyHandlers();

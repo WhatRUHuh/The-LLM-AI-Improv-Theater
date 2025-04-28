@@ -98,6 +98,16 @@ const SingleUserSingleAIInterfacePage: React.FC = () => {
         if (aiChar.catchphrase) prompt += `- 口头禅: ${aiChar.catchphrase}\n`;
         prompt += `\n对话历史中的发言会以 "角色名: 内容" 的格式呈现。`;
         prompt += `请你只输出你扮演的角色 (${aiChar.name}) 的对话内容，不要包含角色名和冒号，也不要进行任何与角色扮演无关的评论或解释。\n`;
+prompt += `\n与你对话的是由人类用户扮演的角色: **${userChar.name}**。\n`; // 强调一下用户角色
+        prompt += `以下是该角色的设定:\n`; // 加上用户角色的详细设定
+        prompt += `- 姓名: ${userChar.name}\n`;
+        if (userChar.identity) prompt += `- 身份: ${userChar.identity}\n`;
+        if (userChar.personality) prompt += `- 性格: ${userChar.personality}\n`;
+        if (userChar.background) prompt += `- 背景: ${userChar.background}\n`;
+        if (userChar.mannerisms) prompt += `- 言行举止: ${userChar.mannerisms}\n`;
+        if (userChar.voiceTone) prompt += `- 说话音调: ${userChar.voiceTone}\n`;
+        if (userChar.catchphrase) prompt += `- 口头禅: ${userChar.catchphrase}\n`;
+        prompt += `\n`; // 加个空行好看点
         prompt += `与你对话的是由人类用户扮演的角色: ${userChar.name}。\n`;
         setSystemPrompt(prompt);
         console.log('[ChatInterface] Generated System Prompt:', prompt);

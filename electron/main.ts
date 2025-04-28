@@ -2,7 +2,13 @@ import { app, BrowserWindow, Menu, shell } from 'electron'; // 导入需要的�
 import path from 'node:path';
 import fs from 'node:fs'; // 导入 fs 模块
 import { fileURLToPath } from 'node:url'; // 导入 fileURLToPath
-import { registerStoreHandlers, registerLLMServiceHandlers, registerProxyHandlers } from './ipcHandlers';
+import {
+  registerStoreHandlers,
+  registerLLMServiceHandlers,
+  registerProxyHandlers,
+  registerCharacterHandlers, // <-- 导入角色处理函数
+  registerScriptHandlers // <-- 导入剧本处理函数
+} from './ipcHandlers';
 import { llmServiceManager } from './llm/LLMServiceManager';
 import { proxyManager } from './ProxyManager';
 import { readStore } from './storage/jsonStore';
@@ -248,9 +254,11 @@ app.whenReady().then(async () => {
     await loadAndApplyProxyConfig();
 
     // 注册 IPC handlers
-    registerStoreHandlers();
-    registerLLMServiceHandlers();
-    registerProxyHandlers();
+    registerStoreHandlers(); // 通用存储
+    registerCharacterHandlers(); // 角色存储
+    registerScriptHandlers(); // 剧本存储
+    registerLLMServiceHandlers(); // LLM 服务
+    registerProxyHandlers(); // 代理设置
 
     createWindow();
     createMenu();

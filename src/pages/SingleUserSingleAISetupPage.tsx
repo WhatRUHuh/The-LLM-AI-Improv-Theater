@@ -43,7 +43,7 @@ const SingleUserSingleAISetupPage: React.FC = () => {
 
   const [mode] = useState<ChatMode | undefined>(initialMode); // Mode 一般不应改变，设为常量
 
-  const [loading, setLoading] = useState(true); // 初始加载数据时 loading
+  const [loading, setLoading] = useState(true); // 统一管理数据加载状态
   const [scripts, setScripts] = useState<Script[]>([]);
   const [characters, setCharacters] = useState<AICharacter[]>([]);
   const [llmServices, setLlmServices] = useState<LLMServiceInfo[]>([]);
@@ -72,23 +72,25 @@ const SingleUserSingleAISetupPage: React.FC = () => {
     const loadData = async () => {
       setLoading(true); // 开始加载时设置 loading
       try {
-        // 并行加载所有数据
+        // 并行加载所有数据 - 使用新 API
+        console.log('[ChatSetupPage] Loading initial data...');
         const [scriptsResult, charactersResult, servicesResult] = await Promise.all([
-          window.electronAPI.readStore('scripts.json', []),
-          window.electronAPI.readStore('characters.json', []), // 使用统一的文件名
+          window.electronAPI.listScripts(), // <-- 使用新 API
+          window.electronAPI.listCharacters(), // <-- 使用新 API
           window.electronAPI.llmGetServices(),
         ]);
+        console.log('[ChatSetupPage] Data loaded:', { scriptsResult, charactersResult, servicesResult });
 
         // 处理剧本数据
         if (scriptsResult.success && Array.isArray(scriptsResult.data)) {
-          setScripts(scriptsResult.data as Script[]);
+          setScripts(scriptsResult.data); // 直接使用 data
         } else {
           message.error(`加载剧本列表失败: ${scriptsResult.error || '数据格式错误'}`);
         }
 
         // 处理角色数据
         if (charactersResult.success && Array.isArray(charactersResult.data)) {
-          setCharacters(charactersResult.data as AICharacter[]);
+          setCharacters(charactersResult.data); // 直接使用 data
         } else {
           message.error(`加载角色列表失败: ${charactersResult.error || '数据格式错误'}`);
         }

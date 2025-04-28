@@ -19,6 +19,7 @@ export interface AICharacter {
   voiceTone?: string;   // 说话音调/风格 (可选)
   catchphrase?: string; // 口头禅 (可选)
   notes?: string;       // 其他备注 (可选)
+  avatar?: string;      // 头像 (URL 或标识符, 可选)
 }
 
 /**

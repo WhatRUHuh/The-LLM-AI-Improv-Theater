@@ -1,6 +1,8 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import type { LLMChatOptions, LLMResponse } from './llm/BaseLLM'; // <-- 导入 LLM 类型 (使用 type-only import)
-import type { ProxyConfig } from './ProxyManager'; // <-- 大小写修正！哼！
+import type { LLMChatOptions, LLMResponse } from './llm/BaseLLM';
+import type { ProxyConfig } from './ProxyManager';
+// 导入角色和剧本类型，确保与后端和前端使用的类型一致
+import type { AICharacter, Script } from '../src/types';
 
 // --------- 向渲染进程暴露选择性的 API ---------
 contextBridge.exposeInMainWorld('electronAPI', { // 使用不同的键名，避免覆盖可能存在的其他 ipcRenderer 暴露
@@ -16,6 +18,22 @@ contextBridge.exposeInMainWorld('electronAPI', { // 使用不同的键名，避�
   // 新增：删除聊天会话文件
   deleteChatSession: (fileName: string): Promise<{ success: boolean; error?: string }> =>
     ipcRenderer.invoke('delete-chat-session', fileName),
+
+  // --- Character Data API ---
+  listCharacters: (): Promise<{ success: boolean; data?: AICharacter[]; error?: string }> =>
+    ipcRenderer.invoke('list-characters'),
+  saveCharacter: (character: AICharacter): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke('save-character', character),
+  deleteCharacter: (characterName: string): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke('delete-character', characterName),
+
+  // --- Script Data API ---
+  listScripts: (): Promise<{ success: boolean; data?: Script[]; error?: string }> =>
+    ipcRenderer.invoke('list-scripts'),
+  saveScript: (script: Script): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke('save-script', script),
+  deleteScript: (scriptTitle: string): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke('delete-script', scriptTitle),
 
   // --- LLM 服务相关 API ---
   llmGetServices: (): Promise<{ success: boolean; data?: { providerId: string; providerName: string; defaultModels: string[] }[]; error?: string }> =>
