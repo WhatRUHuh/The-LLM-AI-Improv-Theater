@@ -87,5 +87,6 @@ export interface ChatPageStateSnapshot {
     inputValue: string;
     systemPrompt: string; // 系统提示也需要保存
     chatSessionId: string; // 会话 ID 也需要保存
+    isStreamingEnabled?: boolean; // 新增：是否启用流式输出
     // aiCharacter 和 userCharacter 可以从 chatConfig 恢复，无需单独保存
 }

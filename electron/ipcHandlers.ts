@@ -1,8 +1,10 @@
-import { ipcMain, app } from 'electron'; // 合并导入
+import { ipcMain, app, BrowserWindow } from 'electron'; // 合并导入, 添加 BrowserWindow
 import fs from 'fs/promises';
 import path from 'path';
 import { readStore, writeStore } from './storage/jsonStore';
-import { LLMChatOptions, LLMResponse } from './llm/BaseLLM';
+// 导入 StreamChunk 类型定义
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+import { BaseLLM, LLMChatOptions, LLMResponse, StreamChunk } from './llm/BaseLLM';
 import { llmServiceManager } from './llm/LLMServiceManager';
 import { proxyManager, ProxyConfig } from './ProxyManager';
 import { getSystemProxy } from 'os-proxy-config';
@@ -457,8 +459,9 @@ export function registerScriptHandlers(): void {
 
 /**
  * 注册与 LLM 服务相关的 IPC 处理程序
+ * @param getMainWindow Function to get the main browser window instance
  */
-export function registerLLMServiceHandlers(): void {
+export function registerLLMServiceHandlers(getMainWindow: () => BrowserWindow | null): void { // <-- 接收一个获取主窗口的函数
   // 获取所有服务商信息
   ipcMain.handle('llm-get-services', async () => {
     console.log('[IPC Main] Received llm-get-services');
@@ -532,9 +535,9 @@ export function registerLLMServiceHandlers(): void {
      }
    });
 
-   // 处理聊天生成请求
+   // 处理聊天生成请求 (非流式)
    ipcMain.handle('llm-generate-chat', async (event, providerId: string, options: LLMChatOptions): Promise<{ success: boolean; data?: LLMResponse; error?: string }> => {
-     console.log(`[IPC Main] Received llm-generate-chat for ${providerId} with options:`, JSON.stringify(options, null, 2));
+     console.log(`[IPC Main] Received llm-generate-chat for ${providerId}`); // 简化日志
      const service = llmServiceManager.getService(providerId);
      if (!service) {
        return { success: false, error: `未找到服务商: ${providerId}` };
@@ -543,8 +546,10 @@ export function registerLLMServiceHandlers(): void {
         return { success: false, error: `服务商 ${providerId} 的 API Key 尚未设置` };
      }
      try {
+       // 确保 options 中 stream 为 false 或未定义
+       options.stream = false;
        const result: LLMResponse = await service.generateChatCompletion(options);
-       console.log(`[IPC Main] Chat completion result for ${providerId}:`, JSON.stringify(result, null, 2));
+       console.log(`[IPC Main] Chat completion result for ${providerId}:`, result.error ? result.error : 'Success'); // 简化日志
        if (result.error) {
           return { success: false, error: result.error, data: result };
        }
@@ -555,6 +560,64 @@ export function registerLLMServiceHandlers(): void {
        return { success: false, error: message };
      }
    });
+
+   // --- 新增：处理流式聊天生成请求 ---
+   ipcMain.handle('llm-generate-chat-stream', async (event, providerId: string, options: LLMChatOptions): Promise<{ success: boolean; error?: string }> => {
+     console.log(`[IPC Main] Received llm-generate-chat-stream for ${providerId}`);
+     const mainWindow = getMainWindow(); // 获取主窗口实例
+     if (!mainWindow) {
+       console.error('[IPC Main] Main window not available for sending stream chunks.');
+       return { success: false, error: '无法发送流式数据：主窗口不存在。' };
+     }
+     const webContents = mainWindow.webContents; // 获取 webContents
+
+     const service = llmServiceManager.getService(providerId);
+     if (!service) {
+       return { success: false, error: `未找到服务商: ${providerId}` };
+     }
+     if (!service.getApiKey()) {
+       return { success: false, error: `服务商 ${providerId} 的 API Key 尚未设置` };
+     }
+
+     // 确保 options 中 stream 为 true
+     options.stream = true;
+
+     try {
+       console.log(`[IPC Main] Starting stream for ${providerId}...`);
+       // 假设 generateChatCompletionStream 返回 AsyncGenerator<StreamChunk>
+       // 检查 service 是否有 generateChatCompletionStream 方法
+       if (typeof service.generateChatCompletionStream !== 'function') {
+           console.error(`[IPC Main] Service ${providerId} does not support streaming.`);
+           return { success: false, error: `服务商 ${providerId} 不支持流式输出。` };
+       }
+       const stream = service.generateChatCompletionStream(options);
+       for await (const chunk of stream) {
+         // console.log('[IPC Main] Sending stream chunk:', chunk); // 调试时可以取消注释
+         if (webContents.isDestroyed()) {
+            console.warn('[IPC Main] WebContents destroyed, stopping stream send.');
+            // 可能需要通知 LLM 服务停止生成 (如果支持)
+            break;
+         }
+         webContents.send('llm-stream-chunk', chunk);
+       }
+       console.log(`[IPC Main] Stream finished for ${providerId}.`);
+       // 发送完成信号 (即使 stream 实现内部已发送 done:true，这里再发一次确保)
+       if (!webContents.isDestroyed()) {
+           webContents.send('llm-stream-chunk', { done: true });
+       }
+       return { success: true }; // 表示启动流式请求成功
+
+     } catch (error: unknown) {
+       const message = error instanceof Error ? error.message : '调用流式聊天生成时发生未知错误';
+       console.error(`[IPC Main] Error handling llm-generate-chat-stream for ${providerId}:`, error);
+       // 发送错误信号给前端
+       if (!webContents.isDestroyed()) {
+           webContents.send('llm-stream-chunk', { error: message, done: true });
+       }
+       return { success: false, error: message }; // 表示启动流式请求失败
+     }
+   });
+
 
    // 获取自定义模型列表
    ipcMain.handle('llm-get-custom-models', async (event, providerId: string): Promise<{ success: boolean; data?: string[]; error?: string }> => {
@@ -821,14 +884,15 @@ export function registerProxyHandlers(): void {
 
 /**
  * 统一注册所有 IPC 处理程序
+ * @param getMainWindow Function to get the main browser window instance
  */
-export function registerAllIpcHandlers(): void {
+export function registerAllIpcHandlers(getMainWindow: () => BrowserWindow | null): void { // <-- 修改签名
   console.log('[IPC Manager] Registering all IPC handlers...');
   registerStoreHandlers();
   registerCharacterHandlers();
   registerScriptHandlers();
   registerChatSessionHandlers();
-  registerLLMServiceHandlers();
+  registerLLMServiceHandlers(getMainWindow); // <-- 传递 getMainWindow
   registerProxyHandlers();
   console.log('[IPC Manager] All IPC handlers registered.');
 }

@@ -248,8 +248,8 @@ app.whenReady().then(async () => {
     await loadAndApplyProxyConfig();
 
     // 注册 IPC handlers
-    // 注册所有 IPC handlers
-    registerAllIpcHandlers(); // <-- 只调用这一个函数
+    // 注册所有 IPC handlers, 并传入获取主窗口的函数
+    registerAllIpcHandlers(() => win); // <-- 传递获取 win 的函数
 
     createWindow();
     createMenu();

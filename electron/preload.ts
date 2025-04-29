@@ -54,9 +54,12 @@ contextBridge.exposeInMainWorld('electronAPI', { // 使用不同的键名，避�
    // 返回值 data 符合 LLMResponse 结构
    llmGenerateChat: (providerId: string, options: LLMChatOptions): Promise<{ success: boolean; data?: LLMResponse; error?: string }> =>
      ipcRenderer.invoke('llm-generate-chat', providerId, options),
+  // 新增：调用流式聊天生成 API (只负责启动，实际数据通过 onLLMStreamChunk 接收)
+  llmGenerateChatStream: (providerId: string, options: LLMChatOptions): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke('llm-generate-chat-stream', providerId, options),
 // 新增：获取和保存自定义模型列表
-   llmGetCustomModels: (providerId: string): Promise<{ success: boolean; data?: string[]; error?: string }> =>
-     ipcRenderer.invoke('llm-get-custom-models', providerId),
+  llmGetCustomModels: (providerId: string): Promise<{ success: boolean; data?: string[]; error?: string }> =>
+    ipcRenderer.invoke('llm-get-custom-models', providerId),
    llmSaveCustomModels: (providerId: string, models: string[]): Promise<{ success: boolean; error?: string }> =>
      ipcRenderer.invoke('llm-save-custom-models', providerId, models),
 
@@ -71,6 +74,26 @@ contextBridge.exposeInMainWorld('electronAPI', { // 使用不同的键名，避�
   // 如果还需要通用的 on/off/send，可以在这里单独暴露，或者按需添加
   // on: (channel, listener) => { /* ... 安全实现 ... */ },
   // send: (channel, data) => { /* ... 安全实现 ... */ },
+
+  // --- 新增：处理 LLM 流式响应 ---
+  // 定义流式数据块的预期结构 (可以根据实际情况调整)
+  // type LLMStreamChunk = { text?: string; error?: string; done?: boolean; usage?: object; metrics?: object; search?: object; mcpToolResponse?: object; generateImage?: object };
+  // 暂时使用 unknown，在接收端进行类型检查
+  onLLMStreamChunk: (listener: (chunkData: unknown) => void): { dispose: () => void } => {
+    const channel = 'llm-stream-chunk';
+    // 使用一个包装函数来确保类型安全和处理 event 参数
+    const internalListener = (_event: Electron.IpcRendererEvent, chunkData: unknown) => {
+        listener(chunkData);
+    };
+    ipcRenderer.on(channel, internalListener);
+    // 返回一个包含 dispose 方法的对象，用于取消监听
+    return {
+      dispose: () => {
+        ipcRenderer.removeListener(channel, internalListener);
+        console.log(`[Preload] Removed listener for ${channel}`);
+      }
+    };
+  },
 
   // 你可以在这里暴露其他需要的 API。
 });

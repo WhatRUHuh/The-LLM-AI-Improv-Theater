@@ -18,13 +18,31 @@ export interface LLMResponse {
  */
 export interface LLMChatOptions {
   model: string; // 要使用的模型
-  messages: { role: 'user' | 'assistant' | 'system'; content: string }[]; // 对话历史
+  messages: { role: 'user' | 'assistant'; content: string }[]; // 对话历史 (只包含 user 和 assistant, system 通过 systemPrompt)
   systemPrompt?: string; // 系统提示 (如果模型支持)
   temperature?: number; // 温度参数 (控制随机性)
   maxTokens?: number; // 最大生成 token 数
   stream?: boolean; // 是否使用流式响应 (暂未实现流式处理)
   // 可以添加更多特定于模型的选项
 }
+
+/**
+ * 定义流式响应的数据块结构
+ */
+export interface StreamChunk {
+  text?: string;       // AI 生成的文本块 (可选)
+  error?: string;      // 如果发生错误 (可选)
+  done?: boolean;      // 指示流是否结束 (可选)
+  // 可以添加其他流式特有的信息，如 token 使用量等
+  usage?: {
+    promptTokens?: number;
+    completionTokens?: number; // 当前块或累积的 completion tokens
+    totalTokens?: number;
+  };
+  modelUsed?: string; // 确认使用的模型 (可能在第一个块或最后一个块返回)
+  rawChunk?: unknown; // 原始数据块 (可选, 用于调试)
+}
+
 
 /**
  * 所有 LLM 服务商实现的基类或接口
@@ -93,6 +111,14 @@ export abstract class BaseLLM {
    * @returns 包含 AI 响应的 Promise
    */
   abstract generateChatCompletion(options: LLMChatOptions): Promise<LLMResponse>;
+
+  /**
+   * 核心方法：发送流式聊天请求到 LLM API
+   * @param options 聊天请求选项 (应包含 stream: true)
+   * @returns 返回一个异步生成器，逐块产生 StreamChunk
+   */
+  abstract generateChatCompletionStream(options: LLMChatOptions): AsyncGenerator<StreamChunk>;
+
 
   /**
    * (可选) 验证 API Key 是否有效的方法

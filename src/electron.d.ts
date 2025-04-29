@@ -43,6 +43,9 @@ declare global {
         => Promise<{ success: boolean; error?: string }>;
       llmGenerateChat: (providerId: string, options: LLMChatOptions)
         => Promise<{ success: boolean; data?: LLMResponse; error?: string }>;
+      // 新增：流式聊天 API 启动方法
+      llmGenerateChatStream: (providerId: string, options: LLMChatOptions)
+        => Promise<{ success: boolean; error?: string }>; // 只返回启动结果
 
       // --- 代理相关 API 类型声明 ---
       proxyGetConfig: ()
@@ -67,6 +70,10 @@ declare global {
            }>;
 
       // 如果未来在 preload.ts 中暴露了更多 API，也需要在这里添加类型声明
+
+      // 新增：流式数据块监听方法
+      onLLMStreamChunk: (listener: (chunkData: unknown) => void)
+        => { dispose: () => void };
     };
   }
 }

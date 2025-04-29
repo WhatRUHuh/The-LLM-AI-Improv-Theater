@@ -1,18 +1,27 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react'; // 确认 useMemo 已移除
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Input, Button, List, Spin, message, Typography, Card, Empty } from 'antd';
+import { Input, Button, List, Spin, message, Typography, Card, Empty, Switch, Space } from 'antd';
 import { SendOutlined, ArrowLeftOutlined } from '@ant-design/icons';
+// 导入 StreamChunk 类型 (假设已在 BaseLLM 定义并导出)
+// import type { StreamChunk } from '../../electron/llm/BaseLLM'; // <-- 需要确认 BaseLLM.ts 中 StreamChunk 的导出
 // 从公共类型文件导入所有需要的类型
 import type {
   // Script, // <-- 删除未使用的 Script
   AICharacter,
   // ChatMode, // <-- 删除未使用的 ChatMode
   ChatConfig,
-  ChatMessage,
+  ChatMessage, // <-- 保留这一个
   ChatPageStateSnapshot
+  // ChatMessage // <-- 删除重复的导入
 } from '../types';
-import type { LLMChatOptions } from '../../electron/llm/BaseLLM';
-import { useLastVisited } from '../hooks/useLastVisited'; // <-- 修改导入路径
+// 导入 LLMChatOptions 和 StreamChunk 类型
+import type { LLMChatOptions, StreamChunk } from '../../electron/llm/BaseLLM';
+import { useLastVisited } from '../hooks/useLastVisited';
+
+
+// --- 流式监听器管理 ---
+// 将监听器引用移到组件外部或使用 useMemo/useRef 避免重复创建
+let streamListenerDispose: (() => void) | null = null;
 
 
 const SingleUserSingleAIInterfacePage: React.FC = () => {
@@ -34,6 +43,8 @@ const SingleUserSingleAIInterfacePage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false); // Loading 状态通常不需要保存
   const [systemPrompt, setSystemPrompt] = useState<string>(restoredState?.systemPrompt ?? '');
   const [chatSessionId, setChatSessionId] = useState<string>(restoredState?.chatSessionId ?? '');
+  // 新增：流式输出开关状态，默认 true，尝试从快照恢复
+  const [isStreamingEnabled, setIsStreamingEnabled] = useState<boolean>(restoredState?.isStreamingEnabled ?? true);
 
   // aiCharacter 和 userCharacter 可以根据 chatConfig 派生，或者在 useEffect 中设置
   const [aiCharacter, setAiCharacter] = useState<AICharacter | null>(null);
@@ -165,12 +176,13 @@ prompt += `\n与你对话的是由人类用户扮演的角色: **${userChar.name
             inputValue,
             systemPrompt,
             chatSessionId,
+            isStreamingEnabled, // <-- 保存流式开关状态
         };
         // 使用 location.pathname 获取当前路径
         updateLastVisitedNavInfo('singleUserSingleAIInterface', location.pathname, undefined, currentStateSnapshot); // <-- 使用更明确的 key
         // console.log('[ChatInterface] Updated context with current state snapshot.'); // 减少日志
     }
-  }, [messages, inputValue, chatConfig, systemPrompt, chatSessionId, updateLastVisitedNavInfo, location.pathname]);
+  }, [messages, inputValue, chatConfig, systemPrompt, chatSessionId, isStreamingEnabled, updateLastVisitedNavInfo, location.pathname]);
 
 
   // --- 滚动到底部 Effect (不变) ---
@@ -178,7 +190,101 @@ prompt += `\n与你对话的是由人类用户扮演的角色: **${userChar.name
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // --- 发送消息给 AI (基本不变, 确保使用当前 state) ---
+
+  // --- 流式数据处理 Effect ---
+  useEffect(() => {
+    // 定义处理函数
+    const handleStreamChunk = (chunkData: unknown) => {
+      // console.log('[ChatInterface] Received stream chunk:', chunkData); // 调试日志
+      // 类型守卫，确保 chunkData 是对象且符合 StreamChunk 结构
+      if (typeof chunkData !== 'object' || chunkData === null) return;
+
+      const chunk = chunkData as StreamChunk; // 类型断言 (或更安全的检查)
+
+      if (chunk.text) {
+        setMessages(prevMessages => {
+          // 找到最后一条消息 (应该是 AI 的占位符或正在接收的消息)
+          const lastMessageIndex = prevMessages.length - 1;
+          if (lastMessageIndex >= 0 && prevMessages[lastMessageIndex].role === 'assistant') {
+            const updatedMessages = [...prevMessages];
+            updatedMessages[lastMessageIndex] = {
+              ...updatedMessages[lastMessageIndex],
+              content: updatedMessages[lastMessageIndex].content + chunk.text,
+              timestamp: Date.now() // 更新时间戳，表示活跃
+            };
+            return updatedMessages;
+          }
+          // 如果最后一条不是 assistant，可能出错了，或者是非流式模式下的意外调用
+          console.warn('[ChatInterface] Received stream chunk but last message is not assistant.');
+          return prevMessages;
+        });
+      }
+
+      if (chunk.error) {
+        message.error(`流式响应出错: ${chunk.error}`);
+        setIsLoading(false); // 出错时停止 loading
+        if (streamListenerDispose) {
+          streamListenerDispose(); // 取消监听
+          streamListenerDispose = null;
+        }
+        // 可以考虑移除最后一条 AI 占位符消息
+        setMessages(prevMessages => {
+            if (prevMessages.length > 0 && prevMessages[prevMessages.length - 1].role === 'assistant' && prevMessages[prevMessages.length - 1].content === '') {
+                return prevMessages.slice(0, -1);
+            }
+            return prevMessages;
+        });
+      }
+
+      if (chunk.done) {
+        console.log('[ChatInterface] Stream finished.');
+        setIsLoading(false); // 流结束时停止 loading
+        if (streamListenerDispose) {
+          streamListenerDispose(); // 取消监听
+          streamListenerDispose = null;
+        }
+        // 可选：保存最终的聊天记录到文件
+        // 注意：这里需要确保 messages 状态是最新的
+        if (chatSessionId && chatConfig) {
+            // 重新获取最新的 messages 状态来保存
+            setMessages(currentMessages => {
+                const snapshotToSave: ChatPageStateSnapshot = {
+                    chatConfig,
+                    messages: currentMessages, // 使用当前最新的消息列表
+                    inputValue,
+                    systemPrompt,
+                    chatSessionId,
+                    isStreamingEnabled,
+                };
+                window.electronAPI.saveChatSession(chatSessionId, snapshotToSave)
+                  .catch(err => message.error(`保存最终对话历史失败: ${err}`));
+                return currentMessages; // 返回当前状态，不修改
+            });
+        }
+      }
+    };
+
+    // 注册监听器
+    console.log('[ChatInterface] Registering stream listener...');
+    const disposeHandle = window.electronAPI.onLLMStreamChunk(handleStreamChunk);
+    streamListenerDispose = disposeHandle.dispose; // 保存 dispose 函数
+
+    // 清理函数：组件卸载时取消监听
+    return () => {
+      console.log('[ChatInterface] Cleaning up stream listener...');
+      if (streamListenerDispose) {
+        streamListenerDispose();
+        streamListenerDispose = null;
+      }
+    };
+    // 依赖项为空数组，表示只在挂载和卸载时执行
+    // 但 handleStreamChunk 内部依赖了 chatSessionId, chatConfig 等状态，
+    // 为了避免闭包问题，将这些依赖项加入，或者使用 useRef 存储它们
+    // 暂时保持空数组，依赖函数式更新 setMessages 来获取最新状态
+  }, [chatConfig, chatSessionId, inputValue, systemPrompt, isStreamingEnabled]); // 添加依赖项确保闭包内状态正确
+
+
+  // --- 发送消息给 AI (修改后支持流式/非流式) ---
   const sendMessageToAI = useCallback(async (history: ChatMessage[]) => {
     // 检查依赖项是否就绪
     if (!aiCharacter || !chatConfig || !systemPrompt || !chatSessionId) {
@@ -192,10 +298,13 @@ prompt += `\n与你对话的是由人类用户扮演的角色: **${userChar.name
       return;
     }
 
-    setIsLoading(true);
+    // 注意：isLoading 现在主要由流式处理的开始和结束控制
+    // setIsLoading(true); // 在发送时设置 loading
+
     try {
+      // 明确 llmHistory 的 role 类型
       const llmHistory = history.map(msg => ({
-        role: msg.role,
+        role: (msg.role === 'user' ? 'user' : 'assistant') as 'user' | 'assistant', // 确认类型断言存在
         content: `${msg.characterName}: ${msg.content}`
       }));
 
@@ -203,48 +312,84 @@ prompt += `\n与你对话的是由人类用户扮演的角色: **${userChar.name
         model: aiConfig.model,
         messages: llmHistory,
         systemPrompt: systemPrompt,
+        stream: isStreamingEnabled, // <-- 传递流式开关状态
+        // temperature, maxTokens 等也可以在这里传递 (如果需要前端控制)
       };
 
-      console.log(`[ChatInterface] Sending to ${aiConfig.providerId} (${aiConfig.model}):`, options);
-      const result = await window.electronAPI.llmGenerateChat(aiConfig.providerId, options);
-      console.log('[ChatInterface] Received from AI:', result);
+      console.log(`[ChatInterface] Sending to ${aiConfig.providerId} (${aiConfig.model}), Streaming: ${isStreamingEnabled}`);
+      setIsLoading(true); // 设置 loading 状态
 
-      if (result.success && result.data?.content) {
-        const aiResponse: ChatMessage = {
+      if (isStreamingEnabled) {
+        // --- 处理流式请求 ---
+        // 1. 添加 AI 消息占位符
+        const placeholderMessage: ChatMessage = {
           role: 'assistant',
           characterId: aiCharacter.id,
           characterName: aiCharacter.name,
-          content: result.data.content.trim(),
+          content: '', // 初始为空
           timestamp: Date.now(),
         };
-        // 更新状态会触发上面的 useEffect 来保存快照
-        setMessages(prevMessages => [...prevMessages, aiResponse]);
-        // 不再在此处单独写入文件，由 Context Effect 处理
-        // 确保 chatConfig 存在再保存快照
-        if (chatSessionId && chatConfig) {
-           // 构建包含新消息的状态快照
-           const snapshotToSave: ChatPageStateSnapshot = {
-               chatConfig, // 使用当前的 chatConfig (包含 mode)
-               messages: [...history, aiResponse], // 使用包含新 AI 回复的消息列表
-               inputValue, // 保存当前输入框内容 (虽然通常是空的)
-               systemPrompt, // 保存当前的系统提示
-               chatSessionId, // 保存当前的会话 ID
-           };
-           // 使用新的 saveChatSession API，传入 sessionId 和快照数据
-           window.electronAPI.saveChatSession(chatSessionId, snapshotToSave)
-             .catch(err => message.error(`保存对话历史失败: ${err}`));
+        setMessages(prevMessages => [...prevMessages, placeholderMessage]);
+
+        // 2. 启动流式请求
+        const startResult = await window.electronAPI.llmGenerateChatStream(aiConfig.providerId, options);
+
+        // 3. 检查启动是否成功
+        if (!startResult.success) {
+          message.error(`启动流式响应失败: ${startResult.error || '未知错误'}`);
+          setIsLoading(false);
+          // 移除占位符
+          setMessages(prevMessages => prevMessages.slice(0, -1));
+        } else {
+          console.log('[ChatInterface] Stream started successfully.');
+          // Loading 状态将在收到 done:true 或 error 时在 handleStreamChunk 中解除
         }
+
       } else {
-        message.error(`AI 回复失败: ${result.error || '未知错误'}`);
+        // --- 处理非流式请求 ---
+        try {
+            const result = await window.electronAPI.llmGenerateChat(aiConfig.providerId, options);
+            console.log('[ChatInterface] Received non-stream response:', result);
+
+            if (result.success && result.data?.content) {
+              const aiResponse: ChatMessage = {
+                role: 'assistant',
+                characterId: aiCharacter.id,
+                characterName: aiCharacter.name,
+                content: result.data.content.trim(),
+                timestamp: Date.now(),
+              };
+              setMessages(prevMessages => [...prevMessages, aiResponse]);
+              // 保存快照
+              if (chatSessionId && chatConfig) {
+                 const snapshotToSave: ChatPageStateSnapshot = {
+                     chatConfig,
+                     messages: [...history, aiResponse], // 使用更新后的消息
+                     inputValue,
+                     systemPrompt,
+                     chatSessionId,
+                     isStreamingEnabled,
+                 };
+                 window.electronAPI.saveChatSession(chatSessionId, snapshotToSave)
+                   .catch(err => message.error(`保存对话历史失败: ${err}`));
+              }
+            } else {
+              message.error(`AI 回复失败: ${result.error || '未知错误'}`);
+            }
+        } catch (error: unknown) {
+            const errorMsg = error instanceof Error ? error.message : String(error);
+            message.error(`调用 AI 时出错: ${errorMsg}`);
+        } finally {
+            setIsLoading(false); // 非流式请求结束后解除 loading
+        }
       }
-    } catch (error: unknown) {
-      const errorMsg = error instanceof Error ? error.message : String(error);
-      message.error(`调用 AI 时出错: ${errorMsg}`);
-    } finally {
-      setIsLoading(false);
+    } catch (error: unknown) { // 这个 catch 块捕获 options 准备阶段的错误
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        message.error(`发送消息前出错: ${errorMsg}`);
+        setIsLoading(false); // 确保解除 loading
     }
-    // 将 inputValue 添加到依赖项
-  }, [aiCharacter, chatConfig, systemPrompt, chatSessionId, inputValue]);
+
+  }, [aiCharacter, chatConfig, systemPrompt, chatSessionId, isStreamingEnabled, inputValue]); // <-- 添加 isStreamingEnabled 到依赖项
 
   // --- 处理用户输入 (基本不变) ---
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -284,10 +429,11 @@ prompt += `\n与你对话的是由人类用户扮演的角色: **${userChar.name
     }
 
     // 发送更新后的历史给 AI
+    // 注意：sendMessageToAI 现在是 useCallback 的一部分，可以直接调用
     sendMessageToAI(updatedMessages);
   };
 
-  // --- 渲染聊天消息 (不变) ---
+  // --- 渲染聊天消息 (基本不变, 但需要处理 AI 消息为空的情况) ---
   const renderMessage = (item: ChatMessage) => {
     const isUser = item.role === 'user';
     const contentStyle: React.CSSProperties = {
@@ -324,9 +470,14 @@ prompt += `\n与你对话的是由人类用户扮演的角色: **${userChar.name
             {item.characterName} {new Date(item.timestamp).toLocaleTimeString()}
           </Typography.Text>
           <div style={contentStyle}>
-            {item.content.split('\n').map((line, index) => (
-              <span key={index}>{line}<br/></span>
-            ))}
+            {/* 如果是 AI 消息且内容为空 (流式占位符)，可以显示一个加载指示器 */}
+            {item.role === 'assistant' && item.content === '' && isLoading ? (
+                <Spin size="small" style={{ display: 'inline-block', marginLeft: '5px' }}/>
+            ) : (
+                item.content.split('\n').map((line, index) => (
+                  <span key={index}>{line}<br/></span>
+                ))
+            )}
           </div>
         </div>
       </List.Item>
@@ -399,14 +550,24 @@ prompt += `\n与你对话的是由人类用户扮演的角色: **${userChar.name
         )}
         <div ref={messagesEndRef} />
       </Card>
-      <div style={{ display: 'flex', alignItems: 'center' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}> {/* 使用 gap 替代 marginRight */}
+        {/* 添加流式开关 */}
+        <Space size="small">
+           <Switch
+             checked={isStreamingEnabled}
+             onChange={setIsStreamingEnabled}
+             size="small"
+             disabled={isLoading} // 发送时禁用开关
+           />
+           <Typography.Text style={{ fontSize: '12px', color: '#666' }}>流式</Typography.Text>
+        </Space>
         <Input
           placeholder={`以 ${userCharacter.name} 的身份发言...`}
           value={inputValue}
           onChange={handleInputChange}
           onPressEnter={handleSendMessage}
           disabled={isLoading}
-          style={{ flexGrow: 1, marginRight: '8px' }}
+          style={{ flexGrow: 1 }} // 移除 marginRight
         />
         <Button
           type="primary"
