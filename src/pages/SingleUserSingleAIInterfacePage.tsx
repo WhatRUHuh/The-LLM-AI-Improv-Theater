@@ -552,7 +552,12 @@ prompt += `\n与你对话的是由人类用户扮演的角色: **${userChar.name
         bodyStyle={{ padding: 0, display: 'flex', flexDirection: 'column', flexGrow: 1 }}
       >
         {/* 3. 添加一个 div 包裹 List，让它滚动 */}
-        <div style={{ flexGrow: 1, overflowY: 'auto', padding: '10px' /* Add padding here */ }}>
+        <div style={{ 
+          flexGrow: 1, 
+          overflowY: 'auto', 
+          padding: '10px',
+          maxHeight: 'calc(100vh - 200px)' /* 确保有最大高度限制 */
+        }}>
           {messages.length === 0 ? (
              <Empty description="开始你们的对话吧！" style={{ paddingTop: '20vh' }}/>
           ) : (
@@ -573,23 +578,27 @@ prompt += `\n与你对话的是由人类用户扮演的角色: **${userChar.name
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
             disabled={isLoading}
-            autoSize={{ minRows: 1, maxRows: 6 }}
+            autoSize={{ minRows: 3, maxRows: 3 }}
             style={{
               paddingBottom: '40px',
-              paddingRight: '50px',
-              resize: 'none'
-             }}
+              paddingRight: '90px', // 增加右侧padding，为开关和按钮留出空间
+              resize: 'none',
+              fontSize: '15px',
+              lineHeight: '1.6',
+              overflowY: 'auto'
+            }}
           />
-          <div style={{ position: 'absolute', bottom: '18px', left: '20px', zIndex: 1 }}>
-             <Space size="small">
-               <Switch
-                 checked={isStreamingEnabled}
-                 onChange={setIsStreamingEnabled}
-                 size="small"
-                 disabled={isLoading}
-               />
-               <Typography.Text style={{ fontSize: '12px', color: '#888' }}>流式</Typography.Text>
-             </Space>
+          {/* 流式开关移到右侧，发送按钮上方，整体靠左一点 */}
+          <div style={{ position: 'absolute', bottom: '50px', right: '40px', zIndex: 1 }}>
+            <Space size="small" direction="vertical" align="center">
+              <Switch
+                checked={isStreamingEnabled}
+                onChange={setIsStreamingEnabled}
+                size="small"
+                disabled={isLoading}
+              />
+              <Typography.Text style={{ fontSize: '12px', color: '#888' }}>流式</Typography.Text>
+            </Space>
           </div>
           <Button
             type="primary"
@@ -600,7 +609,7 @@ prompt += `\n与你对话的是由人类用户扮演的角色: **${userChar.name
             style={{
               position: 'absolute',
               bottom: '18px',
-              right: '20px',
+              right: '40px',
               zIndex: 1
             }}
           />
