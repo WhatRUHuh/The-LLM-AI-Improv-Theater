@@ -24,3 +24,8 @@ electron-cache
 *.njsproj
 *.sln
 *.sw?
+
+# Temporary or example files
+旧代码.txt
+他人的例子.txt
+新版谷歌Gemini官方文档.txt
