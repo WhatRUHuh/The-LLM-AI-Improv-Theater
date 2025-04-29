@@ -85,8 +85,8 @@ const AppLayout: React.FC = () => {
 
 
   return (
-    <Layout style={{ minHeight: '100vh' }}>
-      <Sider width={200} style={{ background: colorBgContainer }}>
+    <Layout style={{ height: '100vh', overflow: 'hidden' }}> {/* 固定高度，隐藏整体滚动条 */}
+      <Sider width={200} style={{ background: colorBgContainer, overflow: 'auto' }}> {/* 让侧边栏能自己滚动 */}
         <div style={{ height: 32, margin: 16, background: 'rgba(0, 0, 0, 0.2)', borderRadius: borderRadiusLG, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 'bold' }}>
           剧场 Logo
         </div>
@@ -98,14 +98,14 @@ const AppLayout: React.FC = () => {
           onClick={handleMenuClick}
         />
       </Sider>
-      <Layout>
-        <Content style={{ margin: '16px' }}>
+      <Layout style={{ overflow: 'auto' }}> {/* 让这个 Layout 负责滚动 */}
+        <Content style={{ padding: 24 }}> {/* 把内边距移到 Content 上，移除 margin */}
           <div
             style={{
-              padding: 24,
-              minHeight: 360,
+              // 移除这里的 padding 和 minHeight
               background: colorBgContainer,
               borderRadius: borderRadiusLG,
+              minHeight: 'calc(100vh - 48px)' // 可选：确保白色背景至少撑满 Content 区域减去 padding 的高度
             }}
           >
             <AppRouter />
