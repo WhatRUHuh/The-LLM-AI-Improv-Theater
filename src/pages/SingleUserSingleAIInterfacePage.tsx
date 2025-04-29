@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'; // 确认 useMemo 已移除
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Input, Button, List, Spin, message, Typography, Card, Empty, Switch, Space } from 'antd';
+import { Input, Button, List, Spin, message, Typography, Card, Empty, Switch, Space, theme } from 'antd'; // Import theme
 import { SendOutlined, ArrowLeftOutlined } from '@ant-design/icons';
 // 导入 StreamChunk 类型 (假设已在 BaseLLM 定义并导出)
 // import type { StreamChunk } from '../../electron/llm/BaseLLM'; // <-- 需要确认 BaseLLM.ts 中 StreamChunk 的导出
@@ -49,6 +49,8 @@ const SingleUserSingleAIInterfacePage: React.FC = () => {
   // aiCharacter 和 userCharacter 可以根据 chatConfig 派生，或者在 useEffect 中设置
   const [aiCharacter, setAiCharacter] = useState<AICharacter | null>(null);
   const [userCharacter, setUserCharacter] = useState<AICharacter | null>(null);
+  // Get theme token
+  const { token: { colorBgContainer } } = theme.useToken();
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -391,8 +393,8 @@ prompt += `\n与你对话的是由人类用户扮演的角色: **${userChar.name
 
   }, [aiCharacter, chatConfig, systemPrompt, chatSessionId, isStreamingEnabled, inputValue]); // <-- 添加 isStreamingEnabled 到依赖项
 
-  // --- 处理用户输入 (基本不变) ---
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // --- 处理用户输入 (TextArea) ---
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => { // <--- 改成 HTMLTextAreaElement
     setInputValue(e.target.value);
   };
 
@@ -431,6 +433,15 @@ prompt += `\n与你对话的是由人类用户扮演的角色: **${userChar.name
     // 发送更新后的历史给 AI
     // 注意：sendMessageToAI 现在是 useCallback 的一部分，可以直接调用
     sendMessageToAI(updatedMessages);
+  };
+
+  // 处理键盘事件 (Enter 发送, Shift+Enter 换行)
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault(); // 阻止默认的换行行为
+      handleSendMessage(); // 调用发送消息函数
+    }
+    // Shift+Enter 会执行默认的换行行为
   };
 
   // --- 渲染聊天消息 (基本不变, 但需要处理 AI 消息为空的情况) ---
@@ -504,7 +515,7 @@ prompt += `\n与你对话的是由人类用户扮演的角色: **${userChar.name
 
   // 配置加载完成后，渲染实际内容
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 100px)' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 5px)' }}>
       {/* 标题区域 */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', margin: '10px 0' }}>
         <Button
@@ -530,55 +541,71 @@ prompt += `\n与你对话的是由人类用户扮演的角色: **${userChar.name
       </div>
       <Card
         variant="borderless" // 使用 variant 替代 bordered
-        styles={{ body: { flexGrow: 1, overflowY: 'auto', padding: '10px 0' } }} // 使用 styles.body 替代 bodyStyle
+        // 1. Card 样式调整：移除 marginBottom, 背景设为白色, 成为 Flex 容器
         style={{
           flexGrow: 1,
           display: 'flex',
           flexDirection: 'column',
-          marginBottom: '10px',
-          backgroundColor: 'transparent'
+          background: colorBgContainer // Use theme background
         }}
+        // 2. Card Body 样式调整：移除默认 padding，让其成为 Flex 容器
+        bodyStyle={{ padding: 0, display: 'flex', flexDirection: 'column', flexGrow: 1 }}
       >
-        {messages.length === 0 ? (
-           <Empty description="开始你们的对话吧！" style={{ paddingTop: '20vh' }}/>
-        ) : (
-           <List
-             dataSource={messages}
-             renderItem={renderMessage}
-             split={false}
-           />
-        )}
-        <div ref={messagesEndRef} />
+        {/* 3. 添加一个 div 包裹 List，让它滚动 */}
+        <div style={{ flexGrow: 1, overflowY: 'auto', padding: '10px' /* Add padding here */ }}>
+          {messages.length === 0 ? (
+             <Empty description="开始你们的对话吧！" style={{ paddingTop: '20vh' }}/>
+          ) : (
+             <List
+               dataSource={messages}
+               renderItem={renderMessage}
+               split={false}
+             />
+          )}
+          <div ref={messagesEndRef} />
+        </div>
+
+        {/* 4. 将输入框区域移动到 Card 内部 */}
+        <div style={{ position: 'relative', padding: '10px', borderTop: '1px solid #f0f0f0', flexShrink: 0 /* 防止输入区被压缩 */ }}>
+          <Input.TextArea
+            placeholder={`以 ${userCharacter?.name ?? '你'} 的身份发言... (Shift+Enter 换行)`}
+            value={inputValue}
+            onChange={handleInputChange}
+            onKeyDown={handleKeyDown}
+            disabled={isLoading}
+            autoSize={{ minRows: 1, maxRows: 6 }}
+            style={{
+              paddingBottom: '40px',
+              paddingRight: '50px',
+              resize: 'none'
+             }}
+          />
+          <div style={{ position: 'absolute', bottom: '18px', left: '20px', zIndex: 1 }}>
+             <Space size="small">
+               <Switch
+                 checked={isStreamingEnabled}
+                 onChange={setIsStreamingEnabled}
+                 size="small"
+                 disabled={isLoading}
+               />
+               <Typography.Text style={{ fontSize: '12px', color: '#888' }}>流式</Typography.Text>
+             </Space>
+          </div>
+          <Button
+            type="primary"
+            icon={<SendOutlined />}
+            onClick={handleSendMessage}
+            loading={isLoading}
+            disabled={!inputValue.trim() || isLoading}
+            style={{
+              position: 'absolute',
+              bottom: '18px',
+              right: '20px',
+              zIndex: 1
+            }}
+          />
+        </div>
       </Card>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}> {/* 使用 gap 替代 marginRight */}
-        {/* 添加流式开关 */}
-        <Space size="small">
-           <Switch
-             checked={isStreamingEnabled}
-             onChange={setIsStreamingEnabled}
-             size="small"
-             disabled={isLoading} // 发送时禁用开关
-           />
-           <Typography.Text style={{ fontSize: '12px', color: '#666' }}>流式</Typography.Text>
-        </Space>
-        <Input
-          placeholder={`以 ${userCharacter.name} 的身份发言...`}
-          value={inputValue}
-          onChange={handleInputChange}
-          onPressEnter={handleSendMessage}
-          disabled={isLoading}
-          style={{ flexGrow: 1 }} // 移除 marginRight
-        />
-        <Button
-          type="primary"
-          icon={<SendOutlined />}
-          onClick={handleSendMessage}
-          loading={isLoading} // Spin 现在由 isLoading 控制，按钮本身的 loading 可以保留或移除
-          disabled={!inputValue.trim() || isLoading} // 增加 isLoading 判断
-        >
-          发送
-        </Button>
-      </div>
     </div>
   );
 };
