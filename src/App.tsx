@@ -85,8 +85,8 @@ const AppLayout: React.FC = () => {
 
 
   return (
-    <Layout style={{ height: '100vh', overflow: 'hidden' }}> {/* 固定高度，隐藏整体滚动条 */}
-      <Sider width={200} style={{ background: colorBgContainer, overflow: 'auto' }}> {/* 让侧边栏能自己滚动 */}
+    <Layout style={{ height: '100vh', overflow: 'hidden' }}> {/* 1. 固定外层高度，禁止整体滚动 */}
+      <Sider width={200} style={{ background: colorBgContainer, overflow: 'auto' }}> {/* 2. Sider 背景色 & 允许自身滚动 (以防万一) */}
         <div style={{ height: 32, margin: 16, background: 'rgba(0, 0, 0, 0.2)', borderRadius: borderRadiusLG, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 'bold' }}>
           剧场 Logo
         </div>
@@ -98,16 +98,10 @@ const AppLayout: React.FC = () => {
           onClick={handleMenuClick}
         />
       </Sider>
-      <Layout style={{ overflow: 'auto' }}> {/* 让这个 Layout 负责滚动 */}
-        <Content style={{ padding: 24 }}> {/* 把内边距移到 Content 上，移除 margin */}
-          <div
-            style={{
-              // 移除这里的 padding 和 minHeight
-              background: colorBgContainer,
-              borderRadius: borderRadiusLG,
-              minHeight: 'calc(100vh - 48px)' // 可选：确保白色背景至少撑满 Content 区域减去 padding 的高度
-            }}
-          >
+      <Layout> {/* 移除 paddingLeft，变成简单容器 */}
+        <Content> {/* 移除所有样式，变成简单容器 */}
+          {/* 5. 内部 div 不再需要特殊样式 */}
+          <div>
             <AppRouter />
           </div>
         </Content>

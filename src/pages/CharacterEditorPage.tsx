@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { Form, Input, Button, message, Card, Typography, Space } from 'antd';
+// 导入 theme 用于获取背景色等 token
+import { Form, Input, Button, message, Card, Typography, Space, theme } from 'antd';
 import { ArrowLeftOutlined } from '@ant-design/icons';
 import { AICharacter } from '../types';
 import { v4 as uuidv4 } from 'uuid';
@@ -20,6 +21,8 @@ const CharacterEditorPage: React.FC = () => {
   const { updateLastVisitedNavInfo } = useLastVisited();
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
+  // 获取 antd 主题 token
+  const { token: { colorBgContainer, borderRadiusLG } } = theme.useToken();
 
   const restoredState = location.state as CharacterEditorStateSnapshot | undefined;
   const isEditMode = restoredState?.isEditMode ?? !!characterIdFromParams;
@@ -163,9 +166,11 @@ const CharacterEditorPage: React.FC = () => {
   };
 
   return (
-    <Card title={
-      <Space>
-        <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/characters')} />
+    // 1. 添加外部 div，负责滚动和左侧 5px 灰色边距
+    <div style={{ maxHeight: 'calc(100vh - 5px)', overflow: 'auto', paddingLeft: '5px' }}>
+      <Card title={
+        <Space>
+          <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/characters')} />
         <Typography.Title level={4} style={{ marginBottom: 0 }}>
           {isEditMode ? "编辑角色" : "添加新角色"}
         </Typography.Title>
@@ -174,6 +179,10 @@ const CharacterEditorPage: React.FC = () => {
        extra={<Typography.Text type="secondary">填写角色的详细信息</Typography.Text>}
        // 初始加载时显示 Loading
        loading={loading && isInitialLoad.current}
+      // 2. 设置 Card 样式：白色背景、圆角、无边框，内边距通过 bodyStyle 设置
+      style={{ background: colorBgContainer, borderRadius: borderRadiusLG }}
+      bodyStyle={{ padding: 10 }} // 将内边距应用到 Card 内容区
+      bordered={false} // 移除 Card 边框
       >
           <Form
             form={form}
@@ -242,6 +251,7 @@ const CharacterEditorPage: React.FC = () => {
             </Form.Item>
           </Form>
       </Card>
+    </div> // 闭合外部 div
     );
   };
 

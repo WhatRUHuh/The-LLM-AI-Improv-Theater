@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { Form, Input, Button, message, Card, Typography, Space, Select } from 'antd';
+// 导入 theme 用于获取背景色等 token
+import { Form, Input, Button, message, Card, Typography, Space, Select, theme } from 'antd';
 import { ArrowLeftOutlined } from '@ant-design/icons';
 import { Script, AICharacter } from '../types';
 import { v4 as uuidv4 } from 'uuid';
@@ -22,6 +23,8 @@ const ScriptEditorPage: React.FC = () => {
   const [loading, setLoading] = useState(false); // 用于保存时的 loading
   const [dataLoading, setDataLoading] = useState(false); // 用于加载剧本/角色数据的 loading
   const [allCharacters, setAllCharacters] = useState<AICharacter[]>([]);
+  // 获取 antd 主题 token
+  const { token: { colorBgContainer, borderRadiusLG } } = theme.useToken();
 
   const restoredState = location.state as ScriptEditorStateSnapshot | undefined;
   const isEditMode = restoredState?.isEditMode ?? !!scriptIdFromParams;
@@ -166,9 +169,11 @@ const ScriptEditorPage: React.FC = () => {
   };
 
   return (
-    <Card title={
-      <Space>
-        <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/scripts')} />
+    // 1. 添加外部 div，负责滚动和左侧 5px 灰色边距
+    <div style={{ maxHeight: 'calc(100vh - 5px)', overflow: 'auto', paddingLeft: '5px' }}>
+      <Card title={
+        <Space>
+          <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/scripts')} />
         <Typography.Title level={4} style={{ marginBottom: 0 }}>
           {isEditMode ? "编辑剧本" : "添加新剧本"}
         </Typography.Title>
@@ -176,6 +181,10 @@ const ScriptEditorPage: React.FC = () => {
      }
      extra={<Typography.Text type="secondary">填写剧本的详细信息</Typography.Text>}
      loading={dataLoading && isInitialLoad.current} // 只有首次加载数据时显示 loading
+    // 2. 设置 Card 样式：白色背景、圆角、无边框，内边距通过 bodyStyle 设置
+    style={{ background: colorBgContainer, borderRadius: borderRadiusLG }}
+    bodyStyle={{ padding: 10 }} // 将内边距应用到 Card 内容区
+    bordered={false} // 移除 Card 边框
     >
       <Form
         form={form}
@@ -240,6 +249,7 @@ const ScriptEditorPage: React.FC = () => {
         </Form.Item>
       </Form>
     </Card>
+    </div> // 闭合外部 div
   );
 };
 

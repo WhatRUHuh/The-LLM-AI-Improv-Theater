@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { List, Card, Input, Button, message, Form, Spin, Typography, Space, Popconfirm, Tooltip } from 'antd'; // 移除未使用的 Tag
+// 导入 theme 用于获取背景色等 token
+import { List, Card, Input, Button, message, Form, Spin, Typography, Space, Popconfirm, Tooltip, theme } from 'antd'; // 移除未使用的 Tag
 import { PlusOutlined, EditOutlined, DeleteOutlined, SaveOutlined, CloseOutlined, ReloadOutlined } from '@ant-design/icons';
 
 // 定义从后端获取的服务商信息结构
@@ -20,6 +21,8 @@ const AIConfigPage: React.FC = () => {
   const [newModelInput, setNewModelInput] = useState<Map<string, string>>(new Map());
   const [editingModel, setEditingModel] = useState<Map<string, { index: number; value: string } | null>>(new Map());
   const [modelsLoading, setModelsLoading] = useState<Map<string, boolean>>(new Map());
+  // 获取 antd 主题 token
+  const { token: { colorBgContainer, borderRadiusLG } } = theme.useToken();
 
   // 加载服务商列表和他们的可用模型
   const loadServicesAndModels = useCallback(async () => {
@@ -329,80 +332,78 @@ const AIConfigPage: React.FC = () => {
 
 
   return (
-    <div>
-      <Typography.Title level={2}>AI 服务商配置</Typography.Title>
-      <Typography.Paragraph>
-        管理连接到不同 AI 大语言模型服务商的配置。请在此处输入您的 API Key。API Key 将仅存储在您的本地设备上。
-      </Typography.Paragraph>
-      {loading ? (
-        <Spin />
-      ) : (
-        <List
-          grid={{ gutter: 16, column: 1 }}
-          dataSource={services}
-          renderItem={(service) => (
-            <List.Item>
-              <Card title={service.providerName} variant="borderless" style={{ boxShadow: '0 2px 8px rgba(0, 0, 0, 0.09)' }}>
-                <Form layout="vertical">
-                  <Form.Item label="API Key">
-                    <Input.Password
-                      placeholder={`请输入 ${service.providerName} API Key`}
-                      value={apiKeys.get(service.providerId) || ''}
-                      onChange={(e) => handleApiKeyChange(service.providerId, e.target.value)}
-                    />
-                  </Form.Item>
-                  {/* 模型列表部分 */}
-                  <Form.Item label="可用模型">
-                    <Spin spinning={modelsLoading.get(service.providerId) || false}>
-                      <List
-                        size="small"
-                        bordered
-                        dataSource={providerModels.get(service.providerId) || []}
-                        renderItem={(model, index) => renderModelItem(service.providerId, model, index)}
-                        locale={{ emptyText: '暂无模型' }}
-                        style={{ marginBottom: 16 }}
+    <div style={{ maxHeight: 'calc(100vh - 5px)', overflow: 'auto', paddingLeft: '5px' }}>
+      <div style={{ background: colorBgContainer, borderRadius: borderRadiusLG, padding: 10 }}>
+        <Typography.Title level={2}>AI 服务商配置</Typography.Title>
+        <Typography.Paragraph>
+          管理连接到不同 AI 大语言模型服务商的配置。请在此处输入您的 API Key。API Key 将仅存储在您的本地设备上。
+        </Typography.Paragraph>
+        {loading ? (
+          <Spin />
+        ) : (
+          <List
+            grid={{ gutter: 16, column: 1 }}
+            dataSource={services}
+            renderItem={(service) => (
+              <List.Item>
+                <Card title={service.providerName} variant="borderless" style={{ boxShadow: '0 2px 8px rgba(0, 0, 0, 0.09)' }}>
+                  <Form layout="vertical">
+                    <Form.Item label="API Key">
+                      <Input.Password
+                        placeholder={`请输入 ${service.providerName} API Key`}
+                        value={apiKeys.get(service.providerId) || ''}
+                        onChange={(e) => handleApiKeyChange(service.providerId, e.target.value)}
                       />
-                      {/* 添加模型输入 */}
-                      <Space.Compact style={{ width: '100%' }}>
-                        <Input
-                          placeholder="输入新模型 ID 添加"
-                          value={newModelInput.get(service.providerId) || ''}
-                          onChange={(e) => handleNewModelInputChange(service.providerId, e.target.value)}
-                          onPressEnter={() => handleAddModel(service.providerId)}
+                    </Form.Item>
+                    <Form.Item label="可用模型">
+                      <Spin spinning={modelsLoading.get(service.providerId) || false}>
+                        <List
+                          size="small"
+                          bordered
+                          dataSource={providerModels.get(service.providerId) || []}
+                          renderItem={(model, index) => renderModelItem(service.providerId, model, index)}
+                          locale={{ emptyText: '暂无模型' }}
+                          style={{ marginBottom: 16 }}
                         />
-                        <Tooltip title="添加模型">
-                          <Button icon={<PlusOutlined />} onClick={() => handleAddModel(service.providerId)} />
-                        </Tooltip>
-                        <Popconfirm
-                           title={`确定要将 ${service.providerName} 的模型列表重置为默认吗？\n（自定义添加的模型将被删除）`}
-                           onConfirm={() => handleResetModels(service.providerId)}
-                           okText="确定重置"
-                           cancelText="取消"
-                         >
-                           <Tooltip title="重置为默认模型">
-                             <Button icon={<ReloadOutlined />} />
-                           </Tooltip>
-                         </Popconfirm>
-                      </Space.Compact>
-                    </Spin>
-                  </Form.Item>
-                  {/* 保存 Key 按钮 */}
-                  <Form.Item>
-                    <Button
-                      type="primary"
-                      onClick={() => handleSaveApiKey(service.providerId)}
-                      loading={savingKeyStatus.get(service.providerId) || false} // 使用 savingKeyStatus
-                    >
-                      保存 Key
-                    </Button>
-                    {/* TODO: 添加测试连接按钮 */}
-                  </Form.Item>
-                </Form>
-              </Card>
-            </List.Item>
-          )}
-        />
-      )}
+                        <Space.Compact style={{ width: '100%' }}>
+                          <Input
+                            placeholder="输入新模型 ID 添加"
+                            value={newModelInput.get(service.providerId) || ''}
+                            onChange={(e) => handleNewModelInputChange(service.providerId, e.target.value)}
+                            onPressEnter={() => handleAddModel(service.providerId)}
+                          />
+                          <Tooltip title="添加模型">
+                            <Button icon={<PlusOutlined />} onClick={() => handleAddModel(service.providerId)} />
+                          </Tooltip>
+                          <Popconfirm
+                             title={`确定要将 ${service.providerName} 的模型列表重置为默认吗？\n（自定义添加的模型将被删除）`}
+                             onConfirm={() => handleResetModels(service.providerId)}
+                             okText="确定重置"
+                             cancelText="取消"
+                           >
+                             <Tooltip title="重置为默认模型">
+                               <Button icon={<ReloadOutlined />} />
+                             </Tooltip>
+                           </Popconfirm>
+                        </Space.Compact>
+                      </Spin>
+                    </Form.Item>
+                    <Form.Item>
+                      <Button
+                        type="primary"
+                        onClick={() => handleSaveApiKey(service.providerId)}
+                        loading={savingKeyStatus.get(service.providerId) || false}
+                      >
+                        保存 Key
+                      </Button>
+                    </Form.Item>
+                  </Form>
+                </Card>
+              </List.Item>
+            )}
+          />
+        )}
+      </div>
     </div>
   );
 };

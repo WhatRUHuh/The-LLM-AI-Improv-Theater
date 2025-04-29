@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { List, Spin, message, Typography, Empty, Tag, Button, Popconfirm } from 'antd';
+// 导入 theme 用于获取背景色等 token
+import { List, Spin, message, Typography, Empty, Tag, Button, Popconfirm, theme } from 'antd';
 import { EyeOutlined, DeleteOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 // 假设 ChatPageStateSnapshot 类型已经移到 types/index.ts 并导出
@@ -38,6 +39,8 @@ const HistoryPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [historyList, setHistoryList] = useState<HistoryItem[]>([]);
   const navigate = useNavigate();
+  // 获取 antd 主题 token
+  const { token: { colorBgContainer, borderRadiusLG } } = theme.useToken();
 
   // 加载历史记录列表
   const loadHistory = async () => {
@@ -149,9 +152,12 @@ const HistoryPage: React.FC = () => {
 
 
   return (
-    <div>
-      <Title level={2}>历史记录</Title>
-      <Spin spinning={loading}>
+    // 1. 添加外部 div，负责滚动和左侧 5px 灰色边距
+    <div style={{ maxHeight: 'calc(100vh - 5px)', overflow: 'auto', paddingLeft: '5px' }}>
+      {/* 2. 给内部容器加上背景、圆角和内边距 */}
+      <div style={{ background: colorBgContainer, borderRadius: borderRadiusLG, padding: 10 }}>
+        <Title level={2}>历史记录</Title>
+        <Spin spinning={loading}>
         {historyList.length === 0 && !loading ? (
           <Empty description="暂无历史记录" />
         ) : (
@@ -192,7 +198,8 @@ const HistoryPage: React.FC = () => {
             )}
           />
         )}
-      </Spin>
+        </Spin>
+      </div>
     </div>
   );
 };

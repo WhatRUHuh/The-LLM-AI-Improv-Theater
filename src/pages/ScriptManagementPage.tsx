@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Table, Button, message, Popconfirm, Tag } from 'antd';
+// 导入 theme 用于获取背景色等 token
+import { Table, Button, message, Popconfirm, Tag, theme } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import { Script, AICharacter } from '../types';
 
@@ -66,6 +67,8 @@ const ScriptManagementPage: React.FC = () => {
   const [loadingCharacters, setLoadingCharacters] = useState(false);
   const [allCharacters, setAllCharacters] = useState<AICharacter[]>([]);
   const navigate = useNavigate();
+  // 获取 antd 主题 token
+  const { token: { colorBgContainer, borderRadiusLG } } = theme.useToken();
 
   // 加载所有角色数据 - 使用新的 listCharacters API
   const loadAllCharacters = async () => {
@@ -148,9 +151,12 @@ const ScriptManagementPage: React.FC = () => {
   };
 
   return (
-    <div>
-      <Button type="primary" onClick={navigateToAdd} style={{ marginBottom: 16 }}>
-        添加剧本
+    // 1. 添加外部 div，负责滚动和左侧 5px 灰色边距
+    <div style={{ maxHeight: 'calc(100vh - 5px)', overflow: 'auto', paddingLeft: '5px' }}>
+      {/* 2. 给内部容器加上背景、圆角和内边距 */}
+      <div style={{ background: colorBgContainer, borderRadius: borderRadiusLG, padding: 10 }}>
+        <Button type="primary" onClick={navigateToAdd} style={{ marginBottom: 16 }}>
+          添加剧本
       </Button>
       <Table
         columns={columns(allCharacters, handleDelete, navigateToEdit)}
@@ -159,7 +165,8 @@ const ScriptManagementPage: React.FC = () => {
         rowKey="id"
         pagination={false}
       />
-    </div>
+      </div>
+    </div> // 闭合外部 div
   );
 };
 

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-// 移除 Modal, Form, Input, uuidv4 的导入
-import { Table, Button, message, Popconfirm } from 'antd'; // 移除了 Tag
+// 导入 theme 用于获取背景色等 token
+import { Table, Button, message, Popconfirm, theme } from 'antd'; // 移除了 Tag
 import { useNavigate } from 'react-router-dom';
 import { AICharacter } from '../types';
 
@@ -61,6 +61,8 @@ const CharacterManagementPage: React.FC = () => {
   const [characters, setCharacters] = useState<AICharacter[]>([]);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate(); // 获取导航函数
+  // 获取 antd 主题 token
+  const { token: { colorBgContainer, borderRadiusLG } } = theme.useToken();
 
   // 移除 Modal 相关的状态和 Form hook
   // const [isModalVisible, setIsModalVisible] = useState(false);
@@ -142,9 +144,12 @@ const CharacterManagementPage: React.FC = () => {
   };
 
   return (
-    <div>
-      {/* 点击按钮跳转到添加页面 */}
-      <Button type="primary" onClick={navigateToAdd} style={{ marginBottom: 16 }}>
+    // 1. 添加外部 div，负责滚动和左侧 5px 灰色边距
+    <div style={{ maxHeight: 'calc(100vh - 5px)', overflow: 'auto', paddingLeft: '5px' }}>
+      {/* 2. 给内部容器加上背景、圆角和内边距 */}
+      <div style={{ background: colorBgContainer, borderRadius: borderRadiusLG, padding: 10 }}>
+        {/* 点击按钮跳转到添加页面 */}
+        <Button type="primary" onClick={navigateToAdd} style={{ marginBottom: 16 }}>
         添加角色
       </Button>
       <Table
@@ -155,7 +160,8 @@ const CharacterManagementPage: React.FC = () => {
         pagination={false}
       />
       {/* Modal 已移除 */}
-    </div>
+      </div>
+    </div> // 闭合外部 div
   );
 };
 

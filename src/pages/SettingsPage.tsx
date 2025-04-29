@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Typography, Card, Radio, Input, Button, message, Spin } from 'antd';
+// 导入 theme 用于获取背景色等 token
+import { Typography, Card, Radio, Input, Button, message, Spin, theme } from 'antd';
 import type { RadioChangeEvent } from 'antd';
 
 // 代理模式类型
@@ -19,6 +20,8 @@ const SettingsPage: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [saving, setSaving] = useState<boolean>(false);
   const [testing, setTesting] = useState<boolean>(false);
+  // 获取 antd 主题 token
+  const { token: { colorBgContainer, borderRadiusLG } } = theme.useToken();
 
   // 加载代理配置
   const loadProxyConfig = async () => {
@@ -165,10 +168,13 @@ const SettingsPage: React.FC = () => {
   };
 
   return (
-    <div>
-      <Typography.Title level={2}>应用设置</Typography.Title>
+    // 1. 添加外部 div，负责滚动和左侧 5px 灰色边距
+    <div style={{ maxHeight: 'calc(100vh - 5px)', overflow: 'auto', paddingLeft: '5px' }}>
+      {/* 2. 给内部容器加上背景、圆角和内边距 */}
+      <div style={{ background: colorBgContainer, borderRadius: borderRadiusLG, padding: 10 }}>
+        <Typography.Title level={2}>应用设置</Typography.Title>
 
-      <Card title="网络代理设置" style={{ marginBottom: 16 }}>
+        <Card title="网络代理设置" style={{ marginBottom: 16 }}>
         <Spin spinning={loading}>
           <Typography.Paragraph>
             配置应用的网络代理设置。代理设置将影响所有网络请求，包括大语言模型的API调用。更改后请点击“保存代理设置”生效。
@@ -220,7 +226,9 @@ const SettingsPage: React.FC = () => {
       </Card>
 
       {/* 其他设置可以在这里添加 */}
-    </div>
+        {/* 其他设置可以在这里添加 */}
+      </div>
+    </div> // 闭合外部 div
   );
 };
 
