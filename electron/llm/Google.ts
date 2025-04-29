@@ -7,7 +7,7 @@ import {
   HarmBlockThreshold,
   FinishReason, // 导入 FinishReason
   BlockedReason, // 导入 BlockedReason
-  // GenerateContentResponse, // 不再需要显式导入，TS 会推断
+  GenerateContentResponse, // 导入流式响应块类型
 } from '@google/genai'; // <--- 修改库导入
 // 导入 StreamChunk 类型定义
 import { BaseLLM, LLMResponse, LLMChatOptions, StreamChunk } from './BaseLLM';
@@ -55,59 +55,44 @@ export class GoogleLLM extends BaseLLM {
 
   /**
    * 将通用的消息历史转换为 Google Gemini API 的 Content[] 格式
-   * Google API 要求 user/model 交替，且不能连续出现相同角色
-   * 这个方法逻辑保持不变，因为新旧库的 Content 格式基本一致
    */
   private mapMessagesToGoogleContent(messages: LLMChatOptions['messages']): Content[] {
     const history: Content[] = [];
     let lastRole: 'user' | 'model' | null = null;
 
-    // 过滤掉非 user/assistant 的消息，并确保第一条是 user
     const filteredMessages = messages.filter(msg => msg.role === 'user' || msg.role === 'assistant');
     if (filteredMessages.length > 0 && filteredMessages[0].role !== 'user') {
         console.warn('[GoogleLLM] History does not start with a user message. Adjusting...');
-        // 实际项目中可能需要更复杂的处理，这里仅作日志记录
     }
 
-
     for (const message of filteredMessages) {
-      // Google 使用 'model' 而不是 'assistant'
-      const currentRole = message.role === 'assistant' ? 'model' : 'user'; // 明确只有 user 和 model
-
-      // 确保角色交替，如果连续出现相同角色，则合并内容
+      const currentRole = message.role === 'assistant' ? 'model' : 'user';
       if (history.length > 0 && currentRole === lastRole) {
          console.warn(`[GoogleLLM] Consecutive messages with role '${currentRole}' detected. Merging content.`);
          const lastContent = history[history.length - 1];
-         // 确保 parts 存在且是数组
          if (!Array.isArray(lastContent.parts)) {
-            lastContent.parts = []; // 或者根据情况处理错误
+            lastContent.parts = [];
          }
-         // 确保 parts 里的元素是 { text: string } 结构
          lastContent.parts.push({ text: message.content });
       } else {
-         // 添加新的 Content 条目
          history.push({
            role: currentRole,
-           // 确保 parts 是 [{ text: string }] 结构
            parts: [{ text: message.content }],
          });
          lastRole = currentRole;
       }
     }
 
-    // Gemini API 要求历史记录必须以 user 角色结束才能调用 sendMessage
-    // 如果最后一条是 model，则移除它，因为无法基于 model 的回复继续生成
     if (history.length > 0 && history[history.length - 1].role === 'model') {
         console.warn('[GoogleLLM] History ends with a model message. Removing the last message for chat context.');
         history.pop();
     }
-
     return history;
   }
 
 
   /**
-   * 实现非流式聊天请求方法 (使用 @google/genai SDK)
+   * 实现非流式聊天请求方法
    */
   async generateChatCompletion(options: LLMChatOptions): Promise<LLMResponse> {
     if (!this.sdk) {
@@ -198,91 +183,96 @@ export class GoogleLLM extends BaseLLM {
       return;
     }
 
-    try {
-      // --- 准备历史记录 ---
-      const messagesForHistory = options.messages.slice(0, -1); // 排除最后一条用户消息
-      const history = this.mapMessagesToGoogleContent(messagesForHistory);
-
-      // --- 准备配置 ---
-      const generationConfig: GenerateContentConfig = {
+    // 提取通用配置和最后的用户消息
+    const generationConfig: GenerateContentConfig = {
         temperature: options.temperature,
         maxOutputTokens: options.maxTokens,
-      };
-      const safetySettings: SafetySetting[] = [
-           { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
-           { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
-           { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
-           { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
-      ];
+    };
+    const safetySettings: SafetySetting[] = [
+         { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
+         { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
+         { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
+         { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
+    ];
+    const systemInstruction = options.systemPrompt ? options.systemPrompt : undefined;
+    const lastUserMessage = options.messages[options.messages.length - 1];
+    let lastUserMessageContent: string | undefined;
 
-      // --- 创建聊天会话 ---
-      const chat = this.sdk.chats.create({
-         model: options.model,
-         history: history,
-         config: {
-            ...generationConfig,
-            safetySettings: safetySettings,
-            systemInstruction: options.systemPrompt ? options.systemPrompt : undefined,
-         },
-      });
+    if (lastUserMessage?.role === 'user') {
+        lastUserMessageContent = lastUserMessage.content;
+    } else {
+        console.error('[GoogleLLM Stream] The last message is not from the user.');
+        yield { error: '内部错误：聊天历史格式不正确，最后一条消息必须是用户消息。', done: true };
+        return;
+    }
 
-      // --- 提取最后一条用户消息 ---
-      const lastUserMessage = options.messages[options.messages.length - 1];
-      let lastUserMessageContent: string | undefined;
-      if (lastUserMessage?.role === 'user') {
-          lastUserMessageContent = lastUserMessage.content;
-      } else {
-          console.error('[GoogleLLM Stream] The last message is not from the user.');
-          yield { error: '内部错误：聊天历史格式不正确，最后一条消息必须是用户消息。', done: true };
-          return;
-      }
+    // --- 根据历史记录长度选择不同的 API 调用方式 ---
+    const messagesForHistory = options.messages.slice(0, -1);
+    const history = this.mapMessagesToGoogleContent(messagesForHistory);
 
-      console.log(`[GoogleLLM Stream] Sending message to model ${options.model}: "${lastUserMessageContent}" with history length: ${history.length}`);
+    let stream: AsyncGenerator<GenerateContentResponse>; // 使用正确的类型
 
-      // --- 调用流式接口 ---
-      // 注意：sendMessageStream 的 message 参数类型是 string | Part | (string | Part)[]
-      // 这里我们只传递 string
-      const stream = await chat.sendMessageStream({ message: lastUserMessageContent });
+    try { // 外层 try...catch 捕获 API 调用和流处理中的错误
+        if (history.length === 0) {
+            // --- 处理第一次请求 (无历史记录) ---
+            console.log(`[GoogleLLM Stream] Sending first message using generateContentStream to model ${options.model}: "${lastUserMessageContent}"`);
+            // 调用 generateContentStream，传递包含所有参数的对象
+            stream = await this.sdk.models.generateContentStream({
+                model: options.model,
+                contents: [{ role: 'user', parts: [{ text: lastUserMessageContent }] }],
+                // 修正：将配置参数放入 config 对象
+                config: {
+                    ...generationConfig, // 展开 temperature, maxOutputTokens
+                    safetySettings: safetySettings,
+                    systemInstruction: systemInstruction,
+                }
+            });
+        } else {
+            // --- 处理后续请求 (有历史记录) ---
+            console.log(`[GoogleLLM Stream] Sending message using chat.sendMessageStream to model ${options.model}: "${lastUserMessageContent}" with history length: ${history.length}`);
+            const chat = this.sdk.chats.create({
+                model: options.model,
+                history: history,
+                config: { // config 应该在 chats.create 时传入
+                    ...generationConfig,
+                    safetySettings: safetySettings,
+                    systemInstruction: systemInstruction,
+                },
+            });
+            stream = await chat.sendMessageStream({ message: lastUserMessageContent });
+        }
 
-      // --- 遍历流并 Yield 数据块 ---
-      // 移除类型注解，让 TS 自动推断 chunk 类型
-      for await (const chunk of stream) {
-         // console.log('[GoogleLLM Stream] Received chunk:', JSON.stringify(chunk)); // 调试日志
-         const chunkText = chunk.text; // 尝试获取文本
+        // --- 统一处理流遍历和 Yield ---
+        for await (const chunk of stream) {
+            // console.log('[GoogleLLM Stream] Received chunk:', JSON.stringify(chunk)); // 调试日志
+            const chunkText = chunk.text; // 尝试获取文本
 
-         // 检查是否有错误或安全阻止
-         if (chunk.promptFeedback?.blockReason) {
-             const blockReason: BlockedReason = chunk.promptFeedback.blockReason; // 显式类型
-             console.error(`[GoogleLLM Stream] Request blocked due to safety settings: ${blockReason}`);
-             yield { error: `请求被安全策略阻止: ${blockReason}`, done: true };
-             return; // 流中断
-         }
-         const finishReason = chunk.candidates?.[0]?.finishReason;
-         // 修正这里的逻辑运算符，使用 &&
-         if (!chunkText && finishReason && finishReason !== FinishReason.STOP && finishReason !== FinishReason.MAX_TOKENS) {
-             console.error(`[GoogleLLM Stream] Response generation stopped unexpectedly: ${finishReason}`);
-             yield { error: `响应生成中止: ${finishReason}`, done: true };
-             return; // 流中断
-         }
+            // 检查是否有错误或安全阻止
+            if (chunk.promptFeedback?.blockReason) {
+                const blockReason: BlockedReason = chunk.promptFeedback.blockReason;
+                console.error(`[GoogleLLM Stream] Request blocked due to safety settings: ${blockReason}`);
+                yield { error: `请求被安全策略阻止: ${blockReason}`, done: true };
+                return; // 流中断
+            }
+            const finishReason = chunk.candidates?.[0]?.finishReason;
+            if (!chunkText && finishReason && finishReason !== FinishReason.STOP && finishReason !== FinishReason.MAX_TOKENS) {
+                console.error(`[GoogleLLM Stream] Response generation stopped unexpectedly: ${finishReason}`);
+                yield { error: `响应生成中止: ${finishReason}`, done: true };
+                return; // 流中断
+            }
 
-         // 发送文本块 (即使是空字符串也发送，以便前端知道仍在处理)
-         yield { text: chunkText ?? '' };
+            // 发送文本块 (即使是空字符串也发送，以便前端知道仍在处理)
+            console.log('[GoogleLLM Stream] Yielding text chunk:', chunkText ?? ''); // 添加日志
+            yield { text: chunkText ?? '' };
+        }
 
+        // --- 流正常结束 ---
+        console.log(`[GoogleLLM Stream] Stream finished for model ${options.model}.`);
+        yield { done: true };
 
-         // 可以在这里添加 token 计数等信息 (如果需要)
-         // const usage = chunk.usageMetadata;
-         // if (usage) {
-         //    yield { usage: { promptTokens: usage.promptTokenCount, completionTokens: usage.candidatesTokenCount, totalTokens: usage.totalTokenCount } };
-         // }
-      }
-
-      // --- 流正常结束 ---
-      console.log(`[GoogleLLM Stream] Stream finished for model ${options.model}.`);
-      yield { done: true };
-
-    } catch (error: unknown) {
-      console.error(`[GoogleLLM Stream] Error during stream chat completion for model ${options.model}:`, error);
-      let detailedError = '调用流式聊天生成时发生未知错误';
+    } catch (error: unknown) { // 这个 catch 块捕获 API 调用和流遍历过程中的错误
+      console.error(`[GoogleLLM Stream] Error during stream for model ${options.model}:`, error);
+      let detailedError = '处理流式响应时发生未知错误';
       if (error instanceof Error) {
         detailedError = error.message;
       } else if (typeof error === 'string') {
