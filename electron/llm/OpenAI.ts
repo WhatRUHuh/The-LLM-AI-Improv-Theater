@@ -1,5 +1,6 @@
-import OpenAI, { ClientOptions } from 'openai'; // 导入 ClientOptions
-import { BaseLLM, LLMResponse, LLMChatOptions } from './BaseLLM';
+import OpenAI, { ClientOptions } from 'openai';
+// 导入 StreamChunk 类型
+import { BaseLLM, LLMResponse, LLMChatOptions, StreamChunk } from './BaseLLM';
 
 /**
  * OpenAI 服务商的实现
@@ -134,6 +135,95 @@ export class OpenAILLM extends BaseLLM {
 
       // 只返回错误消息字符串
       return { content: '', error: detailedError /* rawResponse: error */ }; // 移除原始错误对象
+    }
+  }
+
+  /**
+   * 实现流式聊天请求方法
+   */
+  async *generateChatCompletionStream(options: LLMChatOptions): AsyncGenerator<StreamChunk> {
+    if (!this.openai) {
+      yield { error: 'OpenAI API Key 未设置或客户端初始化失败', done: true };
+      return;
+    }
+
+    try {
+      // 准备 OpenAI API 请求参数
+      const params: OpenAI.Chat.ChatCompletionCreateParams = {
+        model: options.model,
+        messages: options.messages, // 假设 messages 已经是 'user' | 'assistant'
+        temperature: options.temperature ?? 0.7,
+        max_tokens: options.maxTokens,
+        stream: true, // <-- 启用流式响应
+      };
+
+      // 处理 systemPrompt
+      if (options.systemPrompt) {
+        if (!params.messages) params.messages = [];
+        if (!params.messages.some(m => m.role === 'system')) {
+          params.messages.unshift({ role: 'system', content: options.systemPrompt });
+        } else {
+          console.warn('[OpenAI Stream] System prompt already exists, ignoring new systemPrompt option.');
+        }
+      }
+
+      console.log(`[OpenAI Stream] Sending request to model ${options.model}`);
+
+      const stream = await this.openai.chat.completions.create(params);
+
+      let finishReason: string | null = null;
+      // let accumulatedUsage: OpenAI.CompletionUsage | undefined = undefined; // 移除未使用的变量
+
+      for await (const chunk of stream) {
+        const content = chunk.choices[0]?.delta?.content;
+        const currentFinishReason = chunk.choices[0]?.finish_reason;
+        // OpenAI v4 SDK 在 stream=true 时，usage 可能在最后一个 chunk 返回
+        // const currentUsage = chunk.usage; // v4 SDK 中 usage 不在流式 chunk 中
+
+        if (content) {
+          yield { text: content };
+        }
+
+        if (currentFinishReason) {
+          finishReason = currentFinishReason;
+          console.log(`[OpenAI Stream] Finish reason received: ${finishReason}`);
+          // 在 OpenAI v4 中，usage 信息通常在非流式响应或流结束后单独获取，
+          // 流式 chunk 本身不包含完整的 usage。
+          // 如果需要估算，可以在这里累加 token，但通常不准确。
+          // 这里我们只记录 finish_reason，不 yield usage。
+        }
+
+        // 可以在这里检查是否有其他需要处理的信息，比如 tool_calls
+
+      }
+
+      console.log(`[OpenAI Stream] Stream finished for model ${options.model}. Finish reason: ${finishReason}`);
+      // 流结束后发送 done 信号
+      yield { done: true, modelUsed: options.model }; // 移除 usage
+
+    } catch (error: unknown) {
+      console.error(`[OpenAI Stream] Error during stream chat completion for model ${options.model}:`, error);
+      let detailedError = '与 OpenAI API 通信时发生未知错误';
+       // 复用非流式方法的错误处理逻辑
+      if (error instanceof Error) {
+        detailedError = error.message;
+        if (error && typeof error === 'object' && 'response' in error) {
+          const response = (error as { response: unknown }).response;
+          if (response && typeof response === 'object' && 'data' in response) {
+            const data = (response as { data: unknown }).data;
+            if (data && typeof data === 'object' && 'error' in data) {
+              const apiError = (data as { error: unknown }).error;
+              if (apiError && typeof apiError === 'object' && 'message' in apiError && typeof apiError.message === 'string') {
+                const errorType = (typeof apiError === 'object' && 'type' in apiError && typeof apiError.type === 'string') ? apiError.type : 'API Error';
+                detailedError = `${errorType}: ${apiError.message}`;
+              }
+            }
+          }
+        }
+      } else if (typeof error === 'string') {
+        detailedError = error;
+      }
+      yield { error: detailedError, done: true };
     }
   }
 

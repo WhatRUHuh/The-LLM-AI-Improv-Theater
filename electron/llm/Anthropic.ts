@@ -1,5 +1,7 @@
-import Anthropic, { ClientOptions } from '@anthropic-ai/sdk'; // 导入 ClientOptions
-import { BaseLLM, LLMResponse, LLMChatOptions } from './BaseLLM';
+import Anthropic, { ClientOptions } from '@anthropic-ai/sdk';
+// 导入 StreamChunk 类型
+import { BaseLLM, LLMResponse, LLMChatOptions, StreamChunk } from './BaseLLM';
+// import { MessageStreamEvent } from '@anthropic-ai/sdk/resources/messages'; // 移除未使用的导入
 
 /**
  * Anthropic Claude 服务商的实现
@@ -47,63 +49,45 @@ export class AnthropicLLM extends BaseLLM {
   }
 
   /**
-   * 实现聊天请求方法 (需要根据 Anthropic SDK 调整)
+   * 实现非流式聊天请求方法
    */
   async generateChatCompletion(options: LLMChatOptions): Promise<LLMResponse> {
     if (!this.anthropic) {
       return { content: '', error: 'Anthropic API Key 未设置或客户端初始化失败' };
     }
-    // 移除此处对模型的检查
-    // if (!options.model || !this.getAvailableModels().includes(options.model)) {
-    //    return { content: '', error: `模型 ${options.model} 不可用或不受支持` };
-    // }
 
     try {
       // --- 构造 Anthropic API 请求参数 ---
-      // 注意：Anthropic 的 API 结构与 OpenAI 不同，特别是 messages 格式和 system prompt 处理
       const systemPrompt = options.systemPrompt;
-      // Anthropic messages 不包含 system, 且需要 user/assistant 交替
+      // 确保 messages 只包含 user/assistant
       const messages = options.messages
         .filter(m => m.role === 'user' || m.role === 'assistant')
-        .map(m => ({ role: m.role, content: m.content })) as Anthropic.Messages.MessageParam[]; // 类型断言
+        .map(m => ({ role: m.role, content: m.content })) as Anthropic.Messages.MessageParam[];
 
-      // Anthropic 要求 messages 必须以 user 开头 (如果第一条是 assistant，可能需要处理或报错)
+      // 简单检查并处理消息顺序 (确保以 user 开头)
       if (messages.length > 0 && messages[0].role !== 'user') {
-         console.warn('[Anthropic] First message must be from user. Prepending an empty user message or handling required.');
-         // 简单的处理方式：如果第一条是 assistant，前面加一个空的 user message (但这可能影响逻辑)
-         // messages.unshift({ role: 'user', content: '(Placeholder for initial user turn)' });
-         // 或者直接返回错误
-         // return { content: '', error: 'Anthropic API requires the first message to be from the user.' };
+         console.warn('[Anthropic] First message is not from user. Prepending placeholder.');
+         messages.unshift({ role: 'user', content: '(Context begins)' });
       }
-      // Anthropic 要求 messages 必须以 user 结尾 (如果最后一条是 assistant，需要处理)
-      // Anthropic SDK v0.20.1+ 似乎不再强制要求最后一条必须是 user，但旧版本或直接调用 API 可能需要
-      // if (messages.length > 0 && messages[messages.length - 1].role !== 'user') {
-      //    console.warn('[Anthropic] Last message must be from user. API might reject or behave unexpectedly.');
-      //    // return { content: '', error: 'Anthropic API requires the last message to be from the user.' };
-      // }
-
 
       const params: Anthropic.Messages.MessageCreateParams = {
         model: options.model,
-        messages: messages, // 使用处理过的 messages
-        system: systemPrompt, // Anthropic 使用独立的 system 参数
+        messages: messages,
+        system: systemPrompt,
         max_tokens: options.maxTokens ?? 1024, // Anthropic 需要 max_tokens
         temperature: options.temperature,
-        // stream: false, // 暂不支持流式
-        // 其他 Anthropic 特定参数: top_p, top_k 等
+        // stream: false, // 非流式请求
       };
 
-      console.log(`[Anthropic] Sending request to model ${options.model} with params:`, JSON.stringify(params, null, 2));
+      console.log(`[Anthropic] Sending request to model ${options.model}`); // 简化日志
 
       const completion: Anthropic.Messages.Message = await this.anthropic.messages.create(params);
 
-      console.log('[Anthropic] Received completion:', JSON.stringify(completion, null, 2));
+      console.log('[Anthropic] Received completion'); // 简化日志
 
       // --- 解析 Anthropic 响应 ---
-      // Anthropic 的响应结构也不同，需要从中提取内容、模型、token 等信息
       let content = '';
       if (completion.content && completion.content.length > 0) {
-         // 通常是 text 类型
          const textBlock = completion.content.find(block => block.type === 'text');
          if (textBlock) {
             content = (textBlock as Anthropic.Messages.TextBlock).text;
@@ -112,7 +96,6 @@ export class AnthropicLLM extends BaseLLM {
 
       const usage = completion.usage;
 
-      // 不再将原始响应发送回渲染进程
       return {
         content: content,
         modelUsed: completion.model,
@@ -121,22 +104,102 @@ export class AnthropicLLM extends BaseLLM {
           completionTokens: usage?.output_tokens,
           totalTokens: (usage?.input_tokens ?? 0) + (usage?.output_tokens ?? 0),
         },
-        // rawResponse: completion, // 移除原始响应
       };
 
     } catch (error: unknown) {
       console.error(`[Anthropic] Error during chat completion for model ${options.model}:`, error);
       let detailedError = '与 Anthropic API 通信时发生未知错误';
-      if (error instanceof Anthropic.APIError) { // 使用 Anthropic 的特定错误类型
+      if (error instanceof Anthropic.APIError) {
         detailedError = `Anthropic API Error (${error.status}): ${error.message}`;
-        // 可以进一步解析 error.error?.message 等
       } else if (error instanceof Error) {
         detailedError = error.message;
       } else if (typeof error === 'string') {
         detailedError = error;
       }
-      // 只返回错误消息字符串
-      return { content: '', error: detailedError /* rawResponse: error */ }; // 移除原始错误对象
+      return { content: '', error: detailedError };
+    }
+  }
+
+  /**
+   * 实现流式聊天请求方法 (使用 @anthropic-ai/sdk)
+   */
+  async *generateChatCompletionStream(options: LLMChatOptions): AsyncGenerator<StreamChunk> {
+    if (!this.anthropic) {
+      yield { error: 'Anthropic API Key 未设置或客户端初始化失败', done: true };
+      return;
+    }
+
+    try {
+      // --- 构造 Anthropic API 请求参数 ---
+      const systemPrompt = options.systemPrompt;
+      const messages = options.messages
+        .filter(m => m.role === 'user' || m.role === 'assistant')
+        .map(m => ({ role: m.role, content: m.content })) as Anthropic.Messages.MessageParam[];
+
+      // 简单检查并处理消息顺序 (确保以 user 开头)
+      if (messages.length > 0 && messages[0].role !== 'user') {
+        console.warn('[Anthropic Stream] First message is not from user. Prepending placeholder.');
+        messages.unshift({ role: 'user', content: '(Context begins)' });
+      }
+
+      const params: Anthropic.Messages.MessageCreateParams = {
+        model: options.model,
+        messages: messages,
+        system: systemPrompt,
+        max_tokens: options.maxTokens ?? 1024,
+        temperature: options.temperature,
+        stream: true, // <-- 启用流式响应
+      };
+
+      console.log(`[Anthropic Stream] Sending request to model ${options.model}`);
+
+      const stream = await this.anthropic.messages.stream(params);
+
+      // --- 遍历流事件并 Yield 数据块 ---
+      for await (const event of stream) {
+        // console.log('[Anthropic Stream] Received event:', event.type); // 调试日志
+
+        switch (event.type) {
+          case 'content_block_delta':
+            if (event.delta.type === 'text_delta') {
+              // console.log('[Anthropic Stream] Text delta:', event.delta.text);
+              yield { text: event.delta.text };
+            }
+            break;
+          case 'message_start':
+            // console.log('[Anthropic Stream] Message started. Input tokens:', event.message.usage.input_tokens);
+            yield { modelUsed: event.message.model };
+            break;
+          case 'message_delta':
+            // console.log('[Anthropic Stream] Message delta. Output tokens:', event.usage.output_tokens);
+            break;
+          case 'message_stop': { // 添加花括号
+            console.log(`[Anthropic Stream] Stream finished for model ${options.model}.`);
+            yield { done: true }; // 移除 usage 获取
+            break;
+          }
+          case 'content_block_start':
+            break;
+          case 'content_block_stop':
+            break;
+          // 移除 case 'error'
+        }
+      }
+      // 如果循环正常结束但没有收到 message_stop，也发送 done
+      // 但通常 SDK 会确保发送 message_stop
+      // yield { done: true };
+
+    } catch (error: unknown) {
+      console.error(`[Anthropic Stream] Error during stream chat completion for model ${options.model}:`, error);
+      let detailedError = '与 Anthropic API 通信时发生未知错误';
+      if (error instanceof Anthropic.APIError) {
+        detailedError = `Anthropic API Error (${error.status}): ${error.message}`;
+      } else if (error instanceof Error) {
+        detailedError = error.message;
+      } else if (typeof error === 'string') {
+        detailedError = error;
+      }
+      yield { error: detailedError, done: true };
     }
   }
 }
