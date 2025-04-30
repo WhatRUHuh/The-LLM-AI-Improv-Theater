@@ -5,10 +5,10 @@
   "type": "module",
   "main": "dist-electron/main.js",
   "scripts": {
-    "electron:dev": "vite --force",
-    "electron:dev:debug": "tsc -b && vite --force",
-    "electron:dev:clean": "rimraf dist-electron && tsc -b && vite --force",
-    "electron:build": "tsc -b && vite build && electron-builder",
+    "electron:dev": "chcp 65001 && vite --force",
+    "electron:dev:debug": "chcp 65001 && tsc -b && vite --force",
+    "electron:dev:clean": "chcp 65001 && rimraf dist-electron && tsc -b && vite --force",
+    "electron:build": "chcp 65001 && tsc -b && vite build && electron-builder",
     "lint": "eslint .",
     "preview": "vite preview"
   },

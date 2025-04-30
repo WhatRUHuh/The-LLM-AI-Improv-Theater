@@ -67,7 +67,7 @@ export class ProxyManager {
     try {
       this.config = config
       this.clearSystemProxyMonitor()
-      
+
       if (this.config.mode === 'system') {
         await this.setSystemProxy()
         this.monitorSystemProxy()
@@ -99,7 +99,7 @@ export class ProxyManager {
   private async setSystemProxy(): Promise<void> {
     try {
       let currentProxy: { proxyUrl: string } | null = null;
-      
+
       try {
         // 尝试获取系统代理，可能会因为registry-js问题而失败
         const result = await getSystemProxy();
@@ -118,7 +118,7 @@ export class ProxyManager {
       if (!currentProxy || !currentProxy.proxyUrl || currentProxy.proxyUrl === this.config.url) {
         return;
       }
-      
+
       await this.setSessionsProxy({ mode: 'system' });
       this.config.url = currentProxy.proxyUrl.toLowerCase();
       this.setEnvironment(this.config.url);
@@ -198,30 +198,34 @@ export class ProxyManager {
           console.error('Invalid proxy URL format:', proxyUrl)
           return
         }
-        
+
         const [host, portStr] = address.split(':')
         if (!host || !portStr) {
           console.error('Invalid proxy URL format (missing host or port):', proxyUrl)
           return
         }
-        
+
         const port = parseInt(portStr)
         if (isNaN(port)) {
           console.error('Invalid proxy port:', portStr)
           return
         }
-        
+
         if (!protocol.includes('socks')) {
           // 处理HTTP/HTTPS代理
           setGlobalDispatcher(new ProxyAgent(proxyUrl))
         } else {
           // 处理SOCKS代理
+          // 使用类型断言来避免TypeScript错误
           const dispatcher = socksDispatcher({
             port: port,
             type: protocol === 'socks5' ? 5 : 4,
             host: host
-          })
-          global[Symbol.for('undici.globalDispatcher.1')] = dispatcher
+          }) as unknown;
+
+          // 使用类型断言来避免TypeScript错误
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (global as any)[Symbol.for('undici.globalDispatcher.1')] = dispatcher;
         }
       } catch (error) {
         console.error('Error setting global proxy:', error)

@@ -3,6 +3,13 @@ import type { LLMChatOptions, LLMResponse } from './llm/BaseLLM';
 import type { ProxyConfig } from './ProxyManager';
 // 导入角色和剧本类型，确保与后端和前端使用的类型一致
 import type { AICharacter, Script } from '../src/types';
+import { mainLogger as logger } from './utils/logger'; // 导入日志工具
+import { setupGlobalEncoding } from './utils/encoding'; // 导入编码工具
+
+// 设置全局编码为UTF-8
+setupGlobalEncoding().catch(err => {
+  console.error('设置全局编码时出错:', err);
+});
 
 // --------- 向渲染进程暴露选择性的 API ---------
 contextBridge.exposeInMainWorld('electronAPI', { // 使用不同的键名，避免覆盖可能存在的其他 ipcRenderer 暴露
@@ -90,7 +97,7 @@ contextBridge.exposeInMainWorld('electronAPI', { // 使用不同的键名，避�
     return {
       dispose: () => {
         ipcRenderer.removeListener(channel, internalListener);
-        console.log(`[Preload] Removed listener for ${channel}`);
+        logger.info(`已移除监听器: ${channel}`);
       }
     };
   },
@@ -186,9 +193,10 @@ function createLoadingIndicator() {
 const { appendLoading, removeLoading } = createLoadingIndicator();
 domReady().then(appendLoading);
 
-window.onmessage = ev => {
+window.onmessage = (ev: MessageEvent) => {
   // 使用 if 语句以提高清晰度，满足 ESLint 要求
-  if (ev.data.payload === 'removeLoading') {
+  if (ev.data && ev.data.payload === 'removeLoading') {
+    logger.info('收到移除加载指示器的消息');
     removeLoading();
   }
 };

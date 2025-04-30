@@ -6,6 +6,29 @@ import { registerAllIpcHandlers } from './ipcHandlers'; // <-- 只导入统一�
 import { llmServiceManager } from './llm/LLMServiceManager';
 import { proxyManager } from './ProxyManager';
 import { readStore } from './storage/jsonStore';
+import { mainLogger as logger } from './utils/logger'; // 导入日志工具
+import { setupGlobalEncoding } from './utils/encoding'; // 导入编码工具
+
+// 设置全局编码为UTF-8 (异步函数，但我们不需要等待它完成)
+// 在Windows平台上，尝试设置控制台代码页为UTF-8
+if (process.platform === 'win32') {
+  try {
+    // 使用spawn执行chcp命令设置控制台代码页为UTF-8
+    import('child_process').then(({ spawn }) => {
+      spawn('chcp', ['65001'], { stdio: 'ignore', shell: true });
+      logger.info('已设置Windows控制台代码页为UTF-8');
+    }).catch(err => {
+      logger.error('导入child_process模块失败:', err);
+    });
+  } catch (error) {
+    logger.error('设置Windows控制台代码页时出错:', error);
+  }
+}
+
+// 设置全局编码
+setupGlobalEncoding().catch(err => {
+  console.error('设置全局编码时出错:', err);
+});
 
 // --- 全局常量 ---
 const API_KEYS_FILE = 'apiKeys.json';
@@ -40,10 +63,10 @@ function createWindow() {
       if (fs.existsSync(potentialIconPath)) {
           iconPath = potentialIconPath;
       } else {
-          console.warn(`[Main Process] Icon file not found at: ${potentialIconPath}`);
+          logger.warn(`图标文件未找到: ${potentialIconPath}`);
       }
   } else {
-      console.warn(`[Main Process] VITE_PUBLIC path does not exist or is not set: ${publicPath}`);
+      logger.warn(`VITE_PUBLIC 路径不存在或未设置: ${publicPath}`);
   }
 
   win = new BrowserWindow({
@@ -70,7 +93,7 @@ function createWindow() {
     // 在这里计算并检查 dist 路径
     const distPath = path.join(__dirname, '../dist');
     if (!fs.existsSync(distPath)) {
-        console.error(`[Main Process] Production DIST path does not exist: ${distPath}. Exiting.`);
+        logger.error(`生产环境DIST路径不存在: ${distPath}. 退出应用.`);
         app.quit();
         return; // 必须返回，防止后续代码执行
     }
@@ -82,7 +105,7 @@ function createWindow() {
         fs.accessSync(indexPath); // 检查文件是否存在
         win.loadFile(indexPath);
      } catch (error) {
-        console.error(`Error loading index.html from ${indexPath}:`, error);
+        logger.error(`加载index.html失败 ${indexPath}:`, error);
         app.quit();
      }
   }
@@ -187,19 +210,19 @@ function createMenu() {
  * 加载已保存的 API Keys 并设置到服务管理器中
  */
 async function loadAndSetApiKeys() {
-  console.log('[Main Process] Loading saved API keys...');
+  logger.info('正在加载已保存的API密钥...');
   try {
     const savedKeys = await readStore<Record<string, string | null>>(API_KEYS_FILE, {});
-    console.log('[Main Process] Found saved keys for providers:', Object.keys(savedKeys));
+    logger.info('找到已保存的服务商密钥:', Object.keys(savedKeys));
     for (const [providerId, apiKey] of Object.entries(savedKeys)) {
       if (apiKey) {
-        console.log(`[Main Process] Setting API key for ${providerId}...`);
+        logger.info(`正在为 ${providerId} 设置API密钥...`);
         llmServiceManager.setApiKeyForService(providerId, apiKey);
       }
     }
-    console.log('[Main Process] Finished setting saved API keys.');
+    logger.info('已完成设置保存的API密钥.');
   } catch (error) {
-    console.error('[Main Process] Error loading or setting saved API keys:', error);
+    logger.error('加载或设置已保存的API密钥时出错:', error);
   }
 }
 
@@ -207,17 +230,17 @@ async function loadAndSetApiKeys() {
  * 加载已保存的代理配置并应用
  */
 async function loadAndApplyProxyConfig() {
-  console.log('[Main Process] Loading saved proxy configuration...');
+  logger.info('正在加载已保存的代理配置...');
   try {
     const config = await readStore<{ mode: 'system' | 'custom' | 'none'; url?: string }>(
       PROXY_CONFIG_FILE,
       { mode: 'none' }
     );
-    console.log(`[Main Process] Found proxy config: mode=${config.mode}, url=${config.url || 'none'}`);
+    logger.info(`找到代理配置: 模式=${config.mode}, URL=${config.url || '无'}`);
     await proxyManager.configureProxy(config);
-    console.log('[Main Process] Proxy configuration applied successfully.');
+    logger.info('代理配置已成功应用.');
   } catch (error) {
-    console.error('[Main Process] Error loading or applying proxy configuration:', error);
+    logger.error('加载或应用代理配置时出错:', error);
   }
 }
 
@@ -238,7 +261,7 @@ app.on('activate', () => {
 });
 
 app.whenReady().then(async () => {
-  console.log('[Main Process] App ready.');
+  logger.info('应用已就绪.');
   try {
     // 初始化 LLM 服务和加载 API Keys
     await llmServiceManager.initialize();
@@ -253,13 +276,13 @@ app.whenReady().then(async () => {
 
     createWindow();
     createMenu();
-    console.log('[Main Process] Initialization successful.');
+    logger.info('初始化成功.');
   } catch (error) {
-     console.error("[Main Process] Failed during app initialization:", error);
+     logger.error("应用初始化过程中出错:", error);
      app.quit();
   }
 });
 
 process.on('uncaughtException', (error) => {
-  console.error('Uncaught Exception:', error);
+  logger.error('未捕获的异常:', error);
 });

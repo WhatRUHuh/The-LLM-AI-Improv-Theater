@@ -7,6 +7,7 @@ import { useNavigate } from 'react-router-dom';
 // 如果没有，需要先去 SingleUserSingleAIInterfacePage.tsx 导出，或者移到 types/index.ts
 import type { ChatPageStateSnapshot } from '../types';
 import type { ChatMode } from '../types'; // <-- 修改导入路径
+import { historyLogger as logger } from '../utils/logger'; // 导入日志工具
 
 const { Text, Title } = Typography;
 
@@ -59,7 +60,7 @@ const HistoryPage: React.FC = () => {
         const readPromises = fileNames.map(async (fileName) => {
           // 构建相对路径 'chats/fileName'
           const relativePath = `chats/${fileName}`;
-          console.log(`[HistoryPage] Reading file: ${relativePath}`);
+          logger.info(`读取文件: ${relativePath}`);
           const readResult = await window.electronAPI.readStore(relativePath, null); // <-- 使用相对路径读取
           if (readResult.success && readResult.data) {
             try {
@@ -116,7 +117,7 @@ const HistoryPage: React.FC = () => {
   // 处理删除操作
   const handleDelete = async (fileName: string) => {
     // 删除时也需要确保操作的是 chats 目录下的文件
-    console.log(`[HistoryPage] Deleting file: ${fileName}`);
+    logger.info(`删除文件: ${fileName}`);
     try {
       // deleteChatSession 内部已经处理了 chats 目录，直接传文件名即可
       const deleteResult = await window.electronAPI.deleteChatSession(fileName);

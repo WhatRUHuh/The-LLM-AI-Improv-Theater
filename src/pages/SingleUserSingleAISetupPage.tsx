@@ -6,6 +6,7 @@ import { ArrowLeftOutlined } from '@ant-design/icons';
 import type { Script, AICharacter } from '../types';
 import type { ChatMode } from '../types';
 import { useLastVisited } from '../hooks/useLastVisited';
+import { setupLogger as logger } from '../utils/logger'; // 导入日志工具
 
 // 定义 AI 服务商信息结构 (复用或重新定义)
 interface LLMServiceInfo {
@@ -67,13 +68,13 @@ const SingleUserSingleAISetupPage: React.FC = () => {
     const loadData = async () => {
       setLoading(true);
       try {
-        console.log('[ChatSetupPage] Loading initial data...');
+        logger.info('加载初始数据...');
         const [scriptsResult, charactersResult, servicesResult] = await Promise.all([
           window.electronAPI.listScripts(),
           window.electronAPI.listCharacters(),
           window.electronAPI.llmGetServices(),
         ]);
-        console.log('[ChatSetupPage] Data loaded:', { scriptsResult, charactersResult, servicesResult });
+        logger.info('数据已加载:', { scriptsResult, charactersResult, servicesResult });
 
         if (scriptsResult.success && Array.isArray(scriptsResult.data)) {
           setScripts(scriptsResult.data);
@@ -99,7 +100,7 @@ const SingleUserSingleAISetupPage: React.FC = () => {
               }
             } catch (modelError: unknown) {
               const errorMsg = modelError instanceof Error ? modelError.message : String(modelError);
-              console.error(`调用获取 ${service.providerName} 模型时出错: ${errorMsg}`);
+              logger.error(`调用获取 ${service.providerName} 模型时出错: ${errorMsg}`);
               return { providerId: service.providerId, models: service.defaultModels };
             }
           });
@@ -126,7 +127,7 @@ const SingleUserSingleAISetupPage: React.FC = () => {
     }
     loadData();
     if (restoredState) {
-        console.log('[ChatSetupPage] Restored internal state:', restoredState);
+        logger.info('恢复内部状态:', restoredState);
     }
   }, [mode, navigate, restoredState]);
 
@@ -226,7 +227,7 @@ const SingleUserSingleAISetupPage: React.FC = () => {
       userCharacterId,
       aiConfigs: Object.fromEntries(aiConfigs.entries()),
     };
-    console.log('[ChatSetupPage] Starting chat with config:', chatConfig);
+    logger.info('开始聊天，配置:', chatConfig);
     navigate('/single-user-single-ai-interface', { state: chatConfig });
   };
 

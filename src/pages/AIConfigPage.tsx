@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 // 导入 theme 用于获取背景色等 token
 import { List, Card, Input, Button, message, Form, Spin, Typography, Space, Popconfirm, Tooltip, theme } from 'antd'; // 移除未使用的 Tag
 import { PlusOutlined, EditOutlined, DeleteOutlined, SaveOutlined, CloseOutlined, ReloadOutlined } from '@ant-design/icons';
+import { setupLogger as logger } from '../utils/logger'; // 导入日志工具
 
 // 定义从后端获取的服务商信息结构
 interface LLMServiceInfo {
@@ -94,7 +95,7 @@ const AIConfigPage: React.FC = () => {
           : new Map<string, string>();
         // 更新状态，合并加载的 Keys
         setApiKeys(prevKeys => new Map([...prevKeys, ...loadedKeysMap]));
-        console.log('[AIConfigPage] Loaded saved API keys:', result.data);
+        logger.info('已加载保存的API密钥:', result.data);
       } else {
         message.error(`加载已保存的 API Keys 失败: ${result.error || '未知错误'}`);
       }

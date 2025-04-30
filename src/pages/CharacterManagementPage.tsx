@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { Table, Button, message, Popconfirm, theme } from 'antd'; // 移除了 Tag
 import { useNavigate } from 'react-router-dom';
 import { AICharacter } from '../types';
+import { characterLogger as logger } from '../utils/logger'; // 导入日志工具
 
 // columns 的 handleDelete 现在需要传入角色 ID
 const columns = (
@@ -77,17 +78,17 @@ const CharacterManagementPage: React.FC = () => {
     try {
       const result = await window.electronAPI.listCharacters();
       if (result.success && Array.isArray(result.data)) {
-        console.log('[CharacterManagementPage] Loaded characters raw:', result.data.length);
+        logger.info(`已加载原始角色: ${result.data.length}个`);
         // 在设置状态前过滤重复 ID
         const uniqueCharacters = result.data.reduce((acc: AICharacter[], current) => {
           if (!acc.some(char => char.id === current.id)) {
             acc.push(current);
           } else {
-            console.warn(`[CharacterManagementPage] Found duplicate character ID, skipping: ${current.id} (${current.name})`);
+            logger.warn(`发现重复的角色ID，跳过: ${current.id} (${current.name})`);
           }
           return acc;
         }, []);
-        console.log('[CharacterManagementPage] Setting unique characters:', uniqueCharacters.length);
+        logger.info(`设置唯一角色: ${uniqueCharacters.length}个`);
         setCharacters(uniqueCharacters);
       } else {
         message.error(`加载角色列表失败: ${result.error || '未知错误'}`);
@@ -127,7 +128,7 @@ const CharacterManagementPage: React.FC = () => {
   const handleDelete = async (id: string) => { // <-- 改回接收 id
     const characterToDelete = characters.find(c => c.id === id); // 找到角色用于显示名字
     const characterName = characterToDelete ? characterToDelete.name : `ID: ${id}`;
-    console.log(`[CharacterManagementPage] Attempting to delete character: ${characterName} (ID: ${id})`);
+    logger.info(`尝试删除角色: ${characterName} (ID: ${id})`);
     try {
       const result = await window.electronAPI.deleteCharacter(id); // <-- 传递 id
       if (result.success) {

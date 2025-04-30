@@ -12,6 +12,9 @@ import { getSystemProxy } from 'os-proxy-config';
 import type { AICharacter, Script } from '../src/types';
 // 导入聊天快照类型
 import type { ChatPageStateSnapshot } from '../src/types';
+// 导入日志工具和编码工具
+import { ipcLogger as logger } from './utils/logger';
+import { UTF8_OPTIONS } from './utils/encoding';
 
 // --- 文件名/目录常量 ---
 const API_KEYS_FILE = 'apiKeys.json';
@@ -46,15 +49,15 @@ function sanitizeIdForFilename(id: string): string {
 async function ensureDirExists(dirPath: string): Promise<void> {
   try {
     await fs.access(dirPath);
-    console.log(`[EnsureDir] Directory exists: ${dirPath}`);
+    logger.info(`目录已存在: ${dirPath}`);
   } catch (error) { // 使用 unknown 或更具体的类型检查
     // 检查错误是否是包含 code 属性的对象
     if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') {
-      console.log(`[EnsureDir] Directory not found, creating: ${dirPath}`);
+      logger.info(`目录未找到，正在创建: ${dirPath}`);
       await fs.mkdir(dirPath, { recursive: true });
-      console.log(`[EnsureDir] Directory created: ${dirPath}`);
+      logger.info(`目录已创建: ${dirPath}`);
     } else {
-      console.error(`[EnsureDir] Error accessing/creating directory ${dirPath}:`, error);
+      logger.error(`访问/创建目录时出错 ${dirPath}:`, error);
       throw error;
     }
   }
@@ -230,11 +233,11 @@ export function registerChatSessionHandlers(): void {
 
     try {
       await ensureDirExists(chatsDir); // 确保目录存在
-      await fs.writeFile(filePath, JSON.stringify(data, null, 2), 'utf-8'); // 使用格式化写入
-      console.log(`[IPC Handler] Chat session ${fileName} saved successfully.`);
+      await fs.writeFile(filePath, JSON.stringify(data, null, 2), UTF8_OPTIONS); // 使用格式化写入和UTF-8编码
+      logger.info(`聊天会话 ${fileName} 已成功保存.`);
       return { success: true };
     } catch (error: unknown) {
-      console.error(`[IPC Handler] Error handling save-chat-session for ${sessionId}:`, error);
+      logger.error(`保存聊天会话时出错 ${sessionId}:`, error);
       const message = error instanceof Error ? error.message : '保存聊天会话时发生未知错误';
       return { success: false, error: message };
     }
@@ -262,16 +265,16 @@ export function registerCharacterHandlers(): void {
       for (const file of characterFiles) {
         const filePath = path.join(charactersDir, file);
         try {
-          const content = await fs.readFile(filePath, 'utf-8');
+          const content = await fs.readFile(filePath, UTF8_OPTIONS);
           const character = JSON.parse(content) as AICharacter;
           // 这里可以添加校验逻辑，确保解析出的对象符合 AICharacter 结构
           if (character && character.id && character.name) {
              characters.push(character);
           } else {
-             console.warn(`[IPC Handler] Skipping invalid character file: ${file}`);
+             logger.warn(`跳过无效的角色文件: ${file}`);
           }
         } catch (readError) {
-          console.error(`[IPC Handler] Error reading or parsing character file ${file}:`, readError);
+          logger.error(`读取或解析角色文件时出错 ${file}:`, readError);
           // 可以选择跳过这个文件或返回错误
         }
       }
@@ -311,11 +314,11 @@ export function registerCharacterHandlers(): void {
       // 3. 放弃使用名字做文件名，改用 ID (最简单可靠，但违背用户要求)。
       // 暂时采用覆盖逻辑，接受改名后旧文件残留的问题。
 
-      await fs.writeFile(filePath, JSON.stringify(character, null, 2), 'utf-8');
-      console.log(`[IPC Handler] Character ${character.name} saved successfully to ${fileName}.`);
+      await fs.writeFile(filePath, JSON.stringify(character, null, 2), UTF8_OPTIONS);
+      logger.info(`角色 ${character.name} 已成功保存到 ${fileName}.`);
       return { success: true };
     } catch (error: unknown) {
-      console.error(`[IPC Handler] Error handling save-character for ${character.name}:`, error);
+      logger.error(`保存角色时出错 ${character.name}:`, error);
       const message = error instanceof Error ? error.message : '保存角色时发生未知错误';
       return { success: false, error: message };
     }
@@ -373,16 +376,16 @@ export function registerScriptHandlers(): void {
       for (const file of scriptFiles) {
         const filePath = path.join(scriptsDir, file);
         try {
-          const content = await fs.readFile(filePath, 'utf-8');
+          const content = await fs.readFile(filePath, UTF8_OPTIONS);
           const script = JSON.parse(content) as Script;
           // 这里可以添加校验逻辑，确保解析出的对象符合 Script 结构
           if (script && script.id && script.title) {
              scripts.push(script);
           } else {
-             console.warn(`[IPC Handler] Skipping invalid script file: ${file}`);
+             logger.warn(`跳过无效的剧本文件: ${file}`);
           }
         } catch (readError) {
-          console.error(`[IPC Handler] Error reading or parsing script file ${file}:`, readError);
+          logger.error(`读取或解析剧本文件时出错 ${file}:`, readError);
         }
       }
        console.log(`[IPC Handler] Successfully listed ${scripts.length} scripts.`);
@@ -415,11 +418,11 @@ export function registerScriptHandlers(): void {
       await ensureDirExists(scriptsDir); // 确保目录存在
 
       // 同样存在改名后旧文件残留的问题
-      await fs.writeFile(filePath, JSON.stringify(script, null, 2), 'utf-8');
-      console.log(`[IPC Handler] Script ${script.title} saved successfully to ${fileName}.`);
+      await fs.writeFile(filePath, JSON.stringify(script, null, 2), UTF8_OPTIONS);
+      logger.info(`剧本 ${script.title} 已成功保存到 ${fileName}.`);
       return { success: true };
     } catch (error: unknown) {
-      console.error(`[IPC Handler] Error handling save-script for ${script.title}:`, error);
+      logger.error(`保存剧本时出错 ${script.title}:`, error);
       const message = error instanceof Error ? error.message : '保存剧本时发生未知错误';
       return { success: false, error: message };
     }

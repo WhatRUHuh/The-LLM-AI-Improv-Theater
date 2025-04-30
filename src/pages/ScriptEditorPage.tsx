@@ -6,6 +6,7 @@ import { ArrowLeftOutlined } from '@ant-design/icons';
 import { Script, AICharacter } from '../types';
 import { v4 as uuidv4 } from 'uuid';
 import { useLastVisited } from '../hooks/useLastVisited'; // <-- 修改导入路径
+import { scriptLogger as logger } from '../utils/logger'; // 导入日志工具
 
 // 定义页面内部状态快照的类型
 type ScriptEditorStateSnapshot = {
@@ -42,10 +43,10 @@ const ScriptEditorPage: React.FC = () => {
         setDataLoading(true);
         try {
             // 1. 加载角色列表 (总是需要) - 使用新 API
-            console.log('[ScriptEditorPage] Loading characters...');
+            logger.info('加载角色...');
             const charactersResult = await window.electronAPI.listCharacters();
             if (charactersResult.success && Array.isArray(charactersResult.data)) {
-                console.log('[ScriptEditorPage] Loaded characters:', charactersResult.data.length);
+                logger.info(`已加载角色: ${charactersResult.data.length}个`);
                 setAllCharacters(charactersResult.data);
             } else {
                 message.error(`加载角色列表失败: ${charactersResult.error || '未知错误'}`);
@@ -55,17 +56,17 @@ const ScriptEditorPage: React.FC = () => {
             // 2. 根据情况加载剧本或恢复状态
             const isActualNavigation = location.key !== 'default';
             if (restoredState && restoredState.formValues && isActualNavigation) {
-                console.log('[ScriptEditorPage] Restoring state from context:', restoredState);
+                logger.info('从上下文恢复状态:', restoredState);
                 form.setFieldsValue(restoredState.formValues);
                 setCurrentFormValues(restoredState.formValues);
             } else if (isEditMode && scriptId && isInitialLoad.current) {
-                console.log('[ScriptEditorPage] Loading script data for editing...');
+                logger.info('加载剧本数据进行编辑...');
                 // 使用 listScripts 获取所有剧本，然后在前端查找
                 const scriptsResult = await window.electronAPI.listScripts();
                 if (scriptsResult.success && Array.isArray(scriptsResult.data)) {
                     const scriptToEdit = scriptsResult.data.find(script => script.id === scriptId);
                     if (scriptToEdit) {
-                        console.log('[ScriptEditorPage] Found script to edit:', scriptToEdit);
+                        logger.info('找到要编辑的剧本:', scriptToEdit);
                         form.setFieldsValue(scriptToEdit);
                         setCurrentFormValues(scriptToEdit);
                     } else {
@@ -77,7 +78,7 @@ const ScriptEditorPage: React.FC = () => {
                     navigate('/scripts');
                 }
             } else if (!isEditMode && isInitialLoad.current) {
-                console.log('[ScriptEditorPage] Initializing for add mode...');
+                logger.info('初始化添加模式...');
                 const defaultValues = { characterIds: [], tags: [] }; // 添加模式默认值
                 form.setFieldsValue(defaultValues);
                 setCurrentFormValues(defaultValues);
@@ -116,7 +117,7 @@ const ScriptEditorPage: React.FC = () => {
             isEditMode: isEditMode,
             scriptId: scriptId,
         };
-        console.log('[ScriptEditorPage] Saving snapshot to context:', currentStateSnapshot);
+        logger.info('保存快照到上下文:', currentStateSnapshot);
         updateLastVisitedNavInfo('scripts', location.pathname, undefined, currentStateSnapshot);
     }
   }, [currentFormValues, isEditMode, scriptId, updateLastVisitedNavInfo, location.pathname, dataLoading]);
@@ -147,7 +148,7 @@ const ScriptEditorPage: React.FC = () => {
         tags: values.tags || [],
       };
 
-      console.log('[ScriptEditorPage] Attempting to save script:', scriptToSave);
+      logger.info('尝试保存剧本:', scriptToSave);
 
       // 调用新的 saveScript API
       const saveResult = await window.electronAPI.saveScript(scriptToSave);
@@ -181,10 +182,10 @@ const ScriptEditorPage: React.FC = () => {
      }
      extra={<Typography.Text type="secondary">填写剧本的详细信息</Typography.Text>}
      loading={dataLoading && isInitialLoad.current} // 只有首次加载数据时显示 loading
-    // 2. 设置 Card 样式：白色背景、圆角、无边框，内边距通过 bodyStyle 设置
+    // 设置 Card 样式：白色背景、圆角、无边框
     style={{ background: colorBgContainer, borderRadius: borderRadiusLG }}
-    bodyStyle={{ padding: 10 }} // 将内边距应用到 Card 内容区
-    bordered={false} // 移除 Card 边框
+    styles={{ body: { padding: 10 } }} // 使用styles.body代替已弃用的bodyStyle
+    variant="borderless" // 使用variant代替已弃用的bordered
     >
       <Form
         form={form}

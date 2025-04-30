@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { Table, Button, message, Popconfirm, Tag, theme } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import { Script, AICharacter } from '../types';
+import { scriptLogger as logger } from '../utils/logger'; // 导入日志工具
 
 // columns 的 handleDelete 现在需要传入剧本 ID
 const columns = (
@@ -72,12 +73,12 @@ const ScriptManagementPage: React.FC = () => {
 
   // 加载所有角色数据 - 使用新的 listCharacters API
   const loadAllCharacters = async () => {
-    console.log('[ScriptManagementPage] Loading all characters...');
+    logger.info('加载所有角色...');
     setLoadingCharacters(true);
     try {
       const result = await window.electronAPI.listCharacters();
       if (result.success && Array.isArray(result.data)) {
-        console.log('[ScriptManagementPage] Loaded characters:', result.data.length);
+        logger.info(`已加载角色: ${result.data.length}个`);
         setAllCharacters(result.data);
       } else {
         message.error(`加载角色列表失败: ${result.error || '未知错误'}`);
@@ -94,12 +95,12 @@ const ScriptManagementPage: React.FC = () => {
 
   // 加载剧本数据 - 使用新的 listScripts API
   const loadScripts = async () => {
-    console.log('[ScriptManagementPage] Loading scripts...');
+    logger.info('加载剧本...');
     setLoadingScripts(true);
     try {
       const result = await window.electronAPI.listScripts();
       if (result.success && Array.isArray(result.data)) {
-         console.log('[ScriptManagementPage] Loaded scripts:', result.data.length);
+         logger.info(`已加载剧本: ${result.data.length}个`);
         setScripts(result.data);
       } else {
         message.error(`加载剧本列表失败: ${result.error || '未知错误'}`);
@@ -134,7 +135,7 @@ const ScriptManagementPage: React.FC = () => {
   const handleDelete = async (id: string) => { // <-- 改回接收 id
     const scriptToDelete = scripts.find(s => s.id === id); // 找到剧本用于显示标题
     const scriptTitle = scriptToDelete ? scriptToDelete.title : `ID: ${id}`;
-    console.log(`[ScriptManagementPage] Attempting to delete script: ${scriptTitle} (ID: ${id})`);
+    logger.info(`尝试删除剧本: ${scriptTitle} (ID: ${id})`);
     try {
       const result = await window.electronAPI.deleteScript(id); // <-- 传递 id
       if (result.success) {

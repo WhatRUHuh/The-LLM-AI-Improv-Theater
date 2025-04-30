@@ -3,13 +3,14 @@ import { useNavigate } from 'react-router-dom';
 import { Card, Row, Col, Typography, message, theme } from 'antd';
 import { UserOutlined, TeamOutlined, PlaySquareOutlined } from '@ant-design/icons';
 import type { ChatMode } from '../types';
+import { setupLogger as logger } from '../utils/logger'; // 导入日志工具
 
 const ChatModeSelectionPage: React.FC = () => {
   const navigate = useNavigate();
   const { token: { colorBgContainer, borderRadiusLG } } = theme.useToken();
 
   const handleModeSelect = (mode: ChatMode) => {
-    console.log(`[ChatModeSelection] Selected mode: ${mode}`);
+    logger.info(`选择聊天模式: ${mode}`);
     if (mode === 'singleUserSingleAI') {
       navigate('/single-user-single-ai-setup', { state: { mode } });
     } else {

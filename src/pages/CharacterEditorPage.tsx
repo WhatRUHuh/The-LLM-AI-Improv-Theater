@@ -6,6 +6,7 @@ import { ArrowLeftOutlined } from '@ant-design/icons';
 import { AICharacter } from '../types';
 import { v4 as uuidv4 } from 'uuid';
 import { useLastVisited } from '../hooks/useLastVisited'; // <-- 修改导入路径
+import { characterLogger as logger } from '../utils/logger'; // 导入日志工具
 
 // 定义页面内部状态快照的类型
 type CharacterEditorStateSnapshot = {
@@ -37,12 +38,12 @@ const CharacterEditorPage: React.FC = () => {
     const isActualNavigation = location.key !== 'default';
 
     if (restoredState && restoredState.formValues && isActualNavigation) {
-      console.log('[CharacterEditorPage] Restoring state from context:', restoredState);
+      logger.info('从上下文恢复状态:', restoredState);
       form.setFieldsValue(restoredState.formValues);
       setCurrentFormValues(restoredState.formValues);
       isInitialLoad.current = false;
     } else if (isEditMode && characterId && isInitialLoad.current) {
-      console.log('[CharacterEditorPage] Loading character data for editing...');
+      logger.info('加载角色数据进行编辑...');
       setLoading(true);
       const loadCharacter = async () => {
         try {
@@ -51,7 +52,7 @@ const CharacterEditorPage: React.FC = () => {
           if (result.success && Array.isArray(result.data)) {
             const characterToEdit = result.data.find(character => character.id === characterId);
             if (characterToEdit) {
-              console.log('[CharacterEditorPage] Found character to edit:', characterToEdit);
+              logger.info('找到要编辑的角色:', characterToEdit);
               form.setFieldsValue(characterToEdit);
               setCurrentFormValues(characterToEdit);
             } else {
@@ -73,7 +74,7 @@ const CharacterEditorPage: React.FC = () => {
       loadCharacter();
       isInitialLoad.current = false;
     } else if (!isEditMode && isInitialLoad.current) {
-        console.log('[CharacterEditorPage] Initializing for add mode...');
+        logger.info('初始化添加模式...');
         const defaultValues = { gender: '未知' }; // 可以设置更多默认值
         form.setFieldsValue(defaultValues);
         setCurrentFormValues(defaultValues);
@@ -106,7 +107,7 @@ const CharacterEditorPage: React.FC = () => {
             isEditMode: isEditMode,
             characterId: characterId, // 保存当前页面的 characterId
         };
-        console.log('[CharacterEditorPage] Saving snapshot to context:', currentStateSnapshot);
+        logger.info('保存快照到上下文:', currentStateSnapshot);
         updateLastVisitedNavInfo('characters', location.pathname, undefined, currentStateSnapshot);
     }
   }, [currentFormValues, isEditMode, characterId, updateLastVisitedNavInfo, location.pathname, loading]);
@@ -144,7 +145,7 @@ const CharacterEditorPage: React.FC = () => {
         avatar: values.avatar || undefined,
       };
 
-      console.log('[CharacterEditorPage] Attempting to save character:', characterToSave);
+      logger.info('尝试保存角色:', characterToSave);
 
       // 调用新的 saveCharacter API
       const saveResult = await window.electronAPI.saveCharacter(characterToSave);
@@ -179,10 +180,10 @@ const CharacterEditorPage: React.FC = () => {
        extra={<Typography.Text type="secondary">填写角色的详细信息</Typography.Text>}
        // 初始加载时显示 Loading
        loading={loading && isInitialLoad.current}
-      // 2. 设置 Card 样式：白色背景、圆角、无边框，内边距通过 bodyStyle 设置
+      // 设置 Card 样式：白色背景、圆角、无边框
       style={{ background: colorBgContainer, borderRadius: borderRadiusLG }}
-      bodyStyle={{ padding: 10 }} // 将内边距应用到 Card 内容区
-      bordered={false} // 移除 Card 边框
+      styles={{ body: { padding: 10 } }} // 使用styles.body代替已弃用的bodyStyle
+      variant="borderless" // 使用variant代替已弃用的bordered
       >
           <Form
             form={form}

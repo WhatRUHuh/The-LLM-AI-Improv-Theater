@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 // 导入 theme 用于获取背景色等 token
 import { Typography, Card, Radio, Input, Button, message, Spin, theme } from 'antd';
 import type { RadioChangeEvent } from 'antd';
+import { setupLogger as logger } from '../utils/logger'; // 导入日志工具
 
 // 代理模式类型
 type ProxyMode = 'system' | 'custom' | 'none';
@@ -27,20 +28,20 @@ const SettingsPage: React.FC = () => {
   const loadProxyConfig = async () => {
     try {
       setLoading(true);
-      console.log('[SettingsPage] Loading proxy config...');
+      logger.info('加载代理配置...');
       const result = await window.electronAPI.proxyGetConfig();
-      console.log('[SettingsPage] Proxy config loaded:', result);
+      logger.info('代理配置已加载:', result);
       if (result.success && result.data) {
         const loadedConfig = result.data as ProxyConfig;
         // --- 核心改动：UI 状态直接反映加载到的配置 ---
         setProxyMode(loadedConfig.mode);
         setCustomProxyUrlInput(loadedConfig.customProxyUrl || ''); // 输入框始终显示保存的自定义 URL
-        console.log(`[SettingsPage] Loaded and set UI: mode=${loadedConfig.mode}, customUrl=${loadedConfig.customProxyUrl || 'none'}`);
+        logger.info(`已加载并设置UI: 模式=${loadedConfig.mode}, 自定义URL=${loadedConfig.customProxyUrl || '无'}`);
       } else {
         message.error(`加载代理配置失败: ${result.error || '未知错误'}`);
       }
     } catch (error) {
-      console.error('[SettingsPage] Error loading proxy config:', error);
+      logger.error('加载代理配置时出错:', error);
       message.error(`加载代理配置时出错: ${error instanceof Error ? error.message : String(error)}`);
     } finally {
       setLoading(false);
@@ -58,7 +59,7 @@ const SettingsPage: React.FC = () => {
   const handleProxyModeChange = (e: RadioChangeEvent) => {
     const mode = e.target.value as ProxyMode;
     setProxyMode(mode); // 只更新 UI 状态，不自动保存
-    console.log(`[SettingsPage] Proxy mode changed in UI to: ${mode}`);
+    logger.info(`代理模式在UI中更改为: ${mode}`);
     // 注意：不再自动清空或填充输入框，输入框的值与 customProxyUrlInput 绑定
   };
 
@@ -88,7 +89,7 @@ const SettingsPage: React.FC = () => {
         customProxyUrl: customProxyUrlInput.trim() // 保存当前输入框的值作为新的自定义 URL
       };
 
-      console.log(`[SettingsPage] Saving proxy config:`, configToSave);
+      logger.info(`保存代理配置:`, configToSave);
       const result = await window.electronAPI.proxySetConfig(configToSave);
       if (result.success) {
         message.success('代理设置已保存');
@@ -98,7 +99,7 @@ const SettingsPage: React.FC = () => {
         message.error(`保存代理设置失败: ${result.error || '未知错误'}`);
       }
     } catch (error) {
-      console.error('[SettingsPage] Error saving proxy config:', error);
+      logger.error('保存代理配置时出错:', error);
       message.error(`保存代理设置时出错: ${error instanceof Error ? error.message : String(error)}`);
     } finally {
       setSaving(false);
@@ -109,14 +110,14 @@ const SettingsPage: React.FC = () => {
   const testProxyConnection = async () => {
     try {
       setTesting(true);
-      console.log('[SettingsPage] Testing proxy connection (using currently applied settings)...');
+      logger.info('测试代理连接（使用当前应用的设置）...');
       // 注意：测试的是后端 ProxyManager 当前实际应用的代理，
       // 可能与 Settings UI 上未保存的更改不同。
       // 如果需要测试 UI 上的更改，应该先保存。
       message.info('正在测试当前已应用的代理设置...'); // 提示用户
 
       const result = await window.electronAPI.proxyTestConnection();
-      console.log('[SettingsPage] Proxy test result:', result);
+      logger.info('代理测试结果:', result);
 
       if (result.success && result.data) {
         message.success(
@@ -160,7 +161,7 @@ const SettingsPage: React.FC = () => {
         message.error(`代理测试失败: ${result.error || '未知错误'}`, 10);
       }
     } catch (error) {
-      console.error('[SettingsPage] Error testing proxy connection:', error);
+      logger.error('测试代理连接时出错:', error);
       message.error(`测试代理连接时出错: ${error instanceof Error ? error.message : String(error)}`);
     } finally {
       setTesting(false);

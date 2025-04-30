@@ -17,6 +17,7 @@ import type {
 // 导入 LLMChatOptions 和 StreamChunk 类型
 import type { LLMChatOptions, StreamChunk } from '../../electron/llm/BaseLLM';
 import { useLastVisited } from '../hooks/useLastVisited';
+import { chatLogger as logger } from '../utils/logger'; // 导入日志工具
 
 
 // --- 流式监听器管理 ---
@@ -60,7 +61,7 @@ const SingleUserSingleAIInterfacePage: React.FC = () => {
     let didCancel = false; // 添加一个清理标志
 
     const initializeChat = () => {
-        console.log('[ChatInterface] Initializing chat...');
+        logger.info('初始化聊天界面...');
         // 检查 chatConfig 是否有效 (无论是初始传入还是从快照恢复)
         if (!chatConfig) {
           if (!didCancel) { // 只有在组件未卸载时才执行跳转
@@ -103,7 +104,7 @@ const SingleUserSingleAIInterfacePage: React.FC = () => {
     // --- 如果不是从快照恢复，则需要构建 System Prompt 和生成 Session ID ---
     // 检查 restoredState 是否包含 chatConfig 来判断是否是恢复状态
     if (!restoredState?.chatConfig) {
-        console.log('[ChatInterface] Initializing from chatConfig...');
+        logger.info('从配置初始化...');
         let prompt = `你现在正在参与一个 AI 即兴剧场。\n`;
         prompt += `剧本标题: ${chatConfig.script.title}\n`;
         if (chatConfig.script.scene) prompt += `场景: ${chatConfig.script.scene}\n`;
@@ -140,13 +141,13 @@ prompt += `\n与你对话的是由人类用户扮演的角色: **${userChar.name
         prompt += `\n`; // 加个空行好看点
         prompt += `与你对话的是由人类用户扮演的角色: ${userChar.name}。\n`;
         setSystemPrompt(prompt);
-        console.log('[ChatInterface] Generated System Prompt:', prompt);
+        logger.info('生成系统提示:', prompt);
 
         const sessionId = `${chatConfig.script.id}-${Date.now()}`;
         if (!didCancel) setChatSessionId(sessionId); // 更新状态前检查
-        console.log(`[ChatInterface] Generated Chat Session ID: ${sessionId}`);
+        logger.info(`生成聊天会话ID: ${sessionId}`);
     } else {
-      console.log('[ChatInterface] Restored internal state:', restoredState);
+      logger.info('恢复内部状态:', restoredState);
       // 如果是从快照恢复，确保 sessionId 也被正确设置
       if (restoredState?.chatSessionId && !didCancel) {
           setChatSessionId(restoredState.chatSessionId);
@@ -163,7 +164,7 @@ prompt += `\n与你对话的是由人类用户扮演的角色: **${userChar.name
     // 清理函数：当组件卸载或依赖项变化时，设置取消标志
     return () => {
       didCancel = true;
-      console.log('[ChatInterface] Cleanup: Initialization effect cancelled.');
+      logger.info('清理：初始化效果已取消。');
     };
     // 添加 restoredState 到依赖项以消除 ESLint 警告，同时保留 didCancel 标志
   }, [chatConfig, navigate, restoredState]);
@@ -217,7 +218,7 @@ prompt += `\n与你对话的是由人类用户扮演的角色: **${userChar.name
             return updatedMessages;
           }
           // 如果最后一条不是 assistant，可能出错了，或者是非流式模式下的意外调用
-          console.warn('[ChatInterface] Received stream chunk but last message is not assistant.');
+          logger.warn('收到流式数据块但最后一条消息不是AI助手。');
           return prevMessages;
         });
       }
@@ -239,7 +240,7 @@ prompt += `\n与你对话的是由人类用户扮演的角色: **${userChar.name
       }
 
       if (chunk.done) {
-        console.log('[ChatInterface] Stream finished.');
+        logger.info('流式响应完成。');
         setIsLoading(false); // 流结束时停止 loading
         if (streamListenerDispose) {
           streamListenerDispose(); // 取消监听
@@ -267,13 +268,13 @@ prompt += `\n与你对话的是由人类用户扮演的角色: **${userChar.name
     };
 
     // 注册监听器
-    console.log('[ChatInterface] Registering stream listener...');
+    logger.info('注册流式数据监听器...');
     const disposeHandle = window.electronAPI.onLLMStreamChunk(handleStreamChunk);
     streamListenerDispose = disposeHandle.dispose; // 保存 dispose 函数
 
     // 清理函数：组件卸载时取消监听
     return () => {
-      console.log('[ChatInterface] Cleaning up stream listener...');
+      logger.info('清理流式数据监听器...');
       if (streamListenerDispose) {
         streamListenerDispose();
         streamListenerDispose = null;
@@ -290,7 +291,7 @@ prompt += `\n与你对话的是由人类用户扮演的角色: **${userChar.name
   const sendMessageToAI = useCallback(async (history: ChatMessage[]) => {
     // 检查依赖项是否就绪
     if (!aiCharacter || !chatConfig || !systemPrompt || !chatSessionId) {
-        console.warn('[ChatInterface] sendMessageToAI called before state is fully initialized.');
+        logger.warn('在状态完全初始化前调用了sendMessageToAI。');
         return;
     }
 
@@ -318,7 +319,7 @@ prompt += `\n与你对话的是由人类用户扮演的角色: **${userChar.name
         // temperature, maxTokens 等也可以在这里传递 (如果需要前端控制)
       };
 
-      console.log(`[ChatInterface] Sending to ${aiConfig.providerId} (${aiConfig.model}), Streaming: ${isStreamingEnabled}`);
+      logger.info(`发送请求到 ${aiConfig.providerId} (${aiConfig.model}), 流式响应: ${isStreamingEnabled}`);
       setIsLoading(true); // 设置 loading 状态
 
       if (isStreamingEnabled) {
@@ -343,7 +344,7 @@ prompt += `\n与你对话的是由人类用户扮演的角色: **${userChar.name
           // 移除占位符
           setMessages(prevMessages => prevMessages.slice(0, -1));
         } else {
-          console.log('[ChatInterface] Stream started successfully.');
+          logger.info('流式响应已成功启动。');
           // Loading 状态将在收到 done:true 或 error 时在 handleStreamChunk 中解除
         }
 
@@ -351,7 +352,7 @@ prompt += `\n与你对话的是由人类用户扮演的角色: **${userChar.name
         // --- 处理非流式请求 ---
         try {
             const result = await window.electronAPI.llmGenerateChat(aiConfig.providerId, options);
-            console.log('[ChatInterface] Received non-stream response:', result);
+            logger.info('收到非流式响应:', result);
 
             if (result.success && result.data?.content) {
               const aiResponse: ChatMessage = {
@@ -541,20 +542,21 @@ prompt += `\n与你对话的是由人类用户扮演的角色: **${userChar.name
       </div>
       <Card
         variant="borderless" // 使用 variant 替代 bordered
-        // 1. Card 样式调整：移除 marginBottom, 背景设为白色, 成为 Flex 容器
+        // Card 样式调整：移除 marginBottom, 背景设为白色, 成为 Flex 容器
         style={{
           flexGrow: 1,
           display: 'flex',
           flexDirection: 'column',
-          background: colorBgContainer // Use theme background
+          background: colorBgContainer, // Use theme background
+          padding: 0 // 移除默认padding
         }}
-        // 2. Card Body 样式调整：移除默认 padding，让其成为 Flex 容器
-        bodyStyle={{ padding: 0, display: 'flex', flexDirection: 'column', flexGrow: 1 }}
+        // 使用styles.body代替已弃用的bodyStyle
+        styles={{ body: { padding: 0, display: 'flex', flexDirection: 'column', flexGrow: 1 } }}
       >
         {/* 3. 添加一个 div 包裹 List，让它滚动 */}
-        <div style={{ 
-          flexGrow: 1, 
-          overflowY: 'auto', 
+        <div style={{
+          flexGrow: 1,
+          overflowY: 'auto',
           padding: '10px',
           maxHeight: 'calc(100vh - 200px)' /* 确保有最大高度限制 */
         }}>
