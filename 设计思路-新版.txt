@@ -1,0 +1,369 @@
+# 🎭 The-LLM-AI-Improv-Theater 设计思路文档 (2025年5月更新)
+
+> **编码**：UTF-8（项目源码、配置、读写均统一 UTF-8）
+> **字体**：项目根目录放置 `SourceHanSansCN-Normal.otf`，全局引用，确保中文展示一致。
+
+---
+
+## 📦 1. 项目概述
+
+The-LLM-AI-Improv-Theater是一个基于Electron和React的桌面应用，旨在创建一个AI即兴剧场，让用户能够与多个AI角色进行互动，创造丰富多彩的对话体验。项目支持多种聊天模式、角色管理、剧本编辑、多种LLM服务集成以及完整的代理设置功能。
+
+### 核心功能
+
+1. **多种聊天模式**：
+   - 单人单AI模式：用户与单个AI角色对话
+   - 单人多AI模式：用户与多个AI角色同时对话
+   - 导演模式：用户可以控制多个AI角色之间的对话
+
+2. **角色与剧本管理**：
+   - 创建、编辑和删除AI角色
+   - 创建、编辑和删除剧本
+   - 为角色设置详细的属性（性格、背景故事、外貌等）
+
+3. **LLM服务集成**：
+   - 支持OpenAI、Anthropic Claude、Google Gemini等多种LLM服务
+   - 支持API密钥管理和模型选择
+   - 支持流式输出
+
+4. **网络代理设置**：
+   - 支持系统代理、自定义代理和禁用代理三种模式
+   - 支持SOCKS和HTTP/HTTPS代理
+   - 支持代理连接测试
+
+5. **聊天记录管理**：
+   - 保存聊天历史记录
+   - 查看和删除历史记录
+   - 从历史记录恢复聊天
+
+---
+
+## 🛠️ 2. 技术选型
+
+| 技术            | 用途                         | 特点                                        |
+| --------------- | ---------------------------- | ------------------------------------------- |
+| **TypeScript**  | 强类型、接口定义             | 提升代码安全，智能感知                     |
+| **React**       | 组件化 UI                    | 状态管理清晰，生态丰富                     |
+| **Vite**        | 构建工具                     | 极速冷启动、热更新                         |
+| **Ant Design**  | UI 组件库                    | 成熟美观，中文化支持                       |
+| **Electron**    | 桌面跨平台                   | 支持 Windows/macOS/Linux，原生能力         |
+| **Redux**       | 状态管理                     | 用于管理代理配置等全局状态                 |
+| **React Router**| 路由管理                     | 页面导航与状态保持                         |
+| **fetch-socks** | SOCKS代理支持                | 处理SOCKS5/4代理连接                       |
+| **os-proxy-config** | 系统代理检测             | 自动获取系统代理设置                       |
+| **registry-js** | Windows注册表访问            | 读取Windows系统代理设置                    |
+
+---
+
+## 🎨 3. UI/UX 设计
+
+### 整体布局
+
+- **左右分栏**：
+  - 左侧**侧边导航栏**（Sidebar）——固定宽度，中文菜单文字
+  - 右侧**主内容区**（Main Content）——动态切换，无空白
+
+### 侧边导航
+
+- 菜单项（均使用中文文字+图标）：
+  - 聊天
+  - 剧本管理
+  - 角色管理
+  - AI 配置
+  - 历史记录
+  - 设置
+
+### 字体与语言
+
+- 全局使用 `SourceHanSansCN-Normal.otf`（思源黑体）
+- 界面所有文案使用简体中文，禁止出现英文菜单或按钮
+
+### 页面设计
+
+- 所有页面采用统一的样式：白色背景、圆角边框、适当内边距
+- 聊天界面：大字体、无边框、流畅滚动
+- 表单页面：清晰的标签、合理的分组、直观的操作按钮
+- 列表页面：简洁的表格、明确的操作按钮
+
+### 导航记忆功能
+
+- 实现侧边栏导航状态恢复，点击侧边栏可返回各版块最后访问页面及状态
+- 为聊天设置、聊天界面、角色编辑、剧本编辑页面添加返回按钮
+
+---
+
+## 📁 4. 项目结构
+
+```
+The-LLM-AI-Improv-Theater/
+├── SourceHanSansCN-Normal.otf      # 全局字体
+├── electron/                       # 主进程 (TypeScript)
+│   ├── main.ts                     # 窗口控制、生命周期
+│   ├── preload.ts                  # contextBridge API
+│   ├── ipcHandlers.ts              # IPC 通信处理
+│   ├── ProxyManager.ts             # 代理管理
+│   ├── llm/                        # LLM 服务模块
+│   │   ├── BaseLLM.ts              # LLM 基类
+│   │   ├── OpenAILLM.ts            # OpenAI 实现
+│   │   ├── AnthropicLLM.ts         # Anthropic Claude 实现
+│   │   ├── GoogleLLM.ts            # Google Gemini 实现
+│   │   └── LLMServiceManager.ts    # LLM 服务管理
+│   ├── storage/                    # 数据存储
+│   │   └── jsonStore.ts            # JSON 文件存储
+│   └── utils/                      # 工具类
+│       ├── logger.ts               # 日志工具
+│       ├── encoding.ts             # 编码工具
+│       ├── logConfig.ts            # 日志配置
+│       └── logTypes.ts             # 日志类型
+├── src/                            # 渲染进程 (React + TS)
+│   ├── App.tsx                     # 根组件
+│   ├── main.tsx                    # React 初始化
+│   ├── router.tsx                  # 路由配置
+│   ├── electron.d.ts               # Electron API 类型定义
+│   ├── pages/                      # 页面组件
+│   │   ├── ChatModeSelectionPage.tsx       # 聊天模式选择
+│   │   ├── SingleUserSingleAISetupPage.tsx # 单人单AI设置
+│   │   ├── SingleUserSingleAIInterfacePage.tsx # 单人单AI界面
+│   │   ├── ScriptManagementPage.tsx        # 剧本管理
+│   │   ├── ScriptEditorPage.tsx            # 剧本编辑
+│   │   ├── CharacterManagementPage.tsx     # 角色管理
+│   │   ├── CharacterEditorPage.tsx         # 角色编辑
+│   │   ├── AIConfigPage.tsx                # AI配置
+│   │   ├── HistoryPage.tsx                 # 历史记录
+│   │   └── SettingsPage.tsx                # 设置
+│   ├── contexts/                   # React Context
+│   │   ├── LastVisitedContext.tsx          # 最后访问页面上下文
+│   │   └── lastVisitedContextDefinition.ts # 上下文类型定义
+│   ├── hooks/                      # 自定义Hooks
+│   │   └── useLastVisited.ts               # 最后访问页面Hook
+│   ├── types/                      # 类型定义
+│   │   └── index.ts                        # 核心类型定义
+│   └── utils/                      # 工具类
+│       └── logger.ts                       # 前端日志工具
+├── public/                         # 静态资源
+├── vite.config.ts                  # Vite 配置
+├── tsconfig.json                   # TypeScript 配置
+├── package.json                    # 项目依赖
+└── index.html                      # HTML 入口
+```
+
+---
+
+## 🔧 5. 核心模块设计
+
+### 5.1 数据模型
+
+#### AI角色 (AICharacter)
+
+```typescript
+interface AICharacter {
+  id: string;           // 唯一标识符
+  name: string;         // 姓名
+  identity?: string;    // 身份
+  gender?: string;      // 性别
+  age?: string;         // 年龄
+  personality: string;  // 性格
+  background?: string;  // 背景故事
+  appearance?: string;  // 外貌描述
+  abilities?: string;   // 能力/特长
+  goals?: string;       // 目标/动机
+  secrets?: string;     // 秘密
+  relationships?: string;// 人物关系
+  mannerisms?: string;  // 言行举止/小动作
+  voiceTone?: string;   // 说话音调/风格
+  catchphrase?: string; // 口头禅
+  notes?: string;       // 其他备注
+  avatar?: string;      // 头像
+}
+```
+
+#### 剧本 (Script)
+
+```typescript
+interface Script {
+  id: string;           // 唯一标识符
+  title: string;        // 剧本标题
+  scene?: string;       // 场景描述
+  characterIds?: string[]; // 涉及的角色ID列表
+  genre?: string;       // 类型/题材
+  setting?: string;     // 时代/背景设定
+  synopsis?: string;    // 剧情梗概
+  mood?: string;        // 氛围/基调
+  themes?: string;      // 主题
+  tags?: string[];      // 标签
+}
+```
+
+#### 聊天配置 (ChatConfig)
+
+```typescript
+interface ChatConfig {
+  mode: ChatMode;       // 聊天模式
+  script: Script;       // 选择的剧本
+  participatingCharacters: AICharacter[]; // 参与的角色
+  userCharacterId: string | null; // 用户扮演的角色ID
+  aiConfigs: Record<string, { providerId: string; model: string }>; // AI配置
+}
+```
+
+#### 聊天消息 (ChatMessage)
+
+```typescript
+interface ChatMessage {
+  role: 'user' | 'assistant'; // 消息发送者角色
+  characterId: string;        // 角色ID
+  characterName: string;      // 角色名称
+  content: string;            // 消息内容
+  timestamp: number;          // 时间戳
+}
+```
+
+### 5.2 存储机制
+
+- **角色数据**：每个角色存储为`characters/[id].json`
+- **剧本数据**：每个剧本存储为`scripts/[id].json`
+- **聊天记录**：每个聊天会话存储为`chats/[sessionId].json`
+- **配置数据**：
+  - API密钥：`apiKeys.json`
+  - 代理配置：`proxyConfig.json`
+  - 自定义模型：`customModels.json`
+
+### 5.3 IPC通信
+
+- **存储API**：
+  - `readStore`：读取存储文件
+  - `writeStore`：写入存储文件
+  - `listChatSessions`：列出聊天会话
+  - `deleteChatSession`：删除聊天会话
+  - `saveChatSession`：保存聊天会话
+
+- **角色API**：
+  - `listCharacters`：列出所有角色
+  - `saveCharacter`：保存角色
+  - `deleteCharacter`：删除角色
+
+- **剧本API**：
+  - `listScripts`：列出所有剧本
+  - `saveScript`：保存剧本
+  - `deleteScript`：删除剧本
+
+- **LLM服务API**：
+  - `llmGetServices`：获取LLM服务列表
+  - `llmGetModels`：获取模型列表
+  - `llmSaveApiKey`：保存API密钥
+  - `llmChat`：发送聊天请求
+  - `llmChatStream`：发送流式聊天请求
+
+- **代理API**：
+  - `proxyGetConfig`：获取代理配置
+  - `proxySetConfig`：设置代理配置
+  - `proxyTestConnection`：测试代理连接
+  - `proxyGetSystemProxy`：获取系统代理
+
+### 5.4 代理管理
+
+- **代理模式**：
+  - `none`：禁用代理
+  - `system`：使用系统代理
+  - `custom`：使用自定义代理
+
+- **代理类型**：
+  - HTTP/HTTPS代理
+  - SOCKS4/SOCKS5代理
+
+- **代理实现**：
+  - 使用`os-proxy-config`获取系统代理
+  - 使用`registry-js`读取Windows注册表获取系统代理
+  - 使用`fetch-socks`处理SOCKS代理
+  - 使用`proxy-agent`处理HTTP/HTTPS代理
+
+### 5.5 日志系统
+
+- **日志级别**：
+  - DEBUG：调试信息
+  - INFO：一般信息
+  - WARN：警告信息
+  - ERROR：错误信息
+
+- **日志模块**：
+  - main：主进程日志
+  - ipc：IPC通信日志
+  - llm：LLM服务日志
+  - storage：存储日志
+  - proxy：代理日志
+
+- **日志格式**：
+  - 时间戳
+  - 模块前缀
+  - 日志级别
+  - 日志内容
+
+---
+
+## ⚙️ 6. 功能流程
+
+### 6.1 聊天流程
+
+1. 用户点击"聊天"菜单，进入聊天模式选择页面
+2. 用户选择聊天模式（单人单AI/单人多AI/导演模式）
+3. 用户配置聊天参数（剧本、角色、LLM模型等）
+4. 用户点击"开始聊天"，进入聊天界面
+5. 用户与AI角色进行对话
+6. 聊天结束后，聊天记录自动保存
+
+### 6.2 角色管理流程
+
+1. 用户点击"角色管理"菜单，进入角色管理页面
+2. 用户可以查看所有角色列表
+3. 用户可以点击"添加角色"按钮，进入角色编辑页面
+4. 用户可以点击"编辑"按钮，编辑现有角色
+5. 用户可以点击"删除"按钮，删除角色
+
+### 6.3 剧本管理流程
+
+1. 用户点击"剧本管理"菜单，进入剧本管理页面
+2. 用户可以查看所有剧本列表
+3. 用户可以点击"添加剧本"按钮，进入剧本编辑页面
+4. 用户可以点击"编辑"按钮，编辑现有剧本
+5. 用户可以点击"删除"按钮，删除剧本
+
+### 6.4 AI配置流程
+
+1. 用户点击"AI配置"菜单，进入AI配置页面
+2. 用户可以查看所有LLM服务
+3. 用户可以为每个服务配置API密钥
+4. 用户可以查看每个服务支持的模型
+
+### 6.5 代理设置流程
+
+1. 用户点击"设置"菜单，进入设置页面
+2. 用户可以选择代理模式（系统/自定义/禁用）
+3. 如果选择自定义代理，用户可以输入代理URL
+4. 用户可以点击"测试连接"按钮，测试代理是否有效
+5. 用户点击"保存"按钮，保存代理设置
+
+---
+
+## 🔮 7. 未来拓展
+
+### 7.1 功能拓展
+
+- **多用户多AI模式**：支持多个用户与多个AI角色同时对话
+- **AI语音合成**：为AI角色添加语音输出
+- **角色立绘与动画**：为AI角色添加立绘和动画效果
+- **剧本模板**：提供预设的剧本模板
+- **角色模板**：提供预设的角色模板
+- **对话导出**：支持导出对话为文本、图片或视频
+
+### 7.2 技术拓展
+
+- **本地LLM支持**：集成本地运行的LLM模型
+- **向量数据库**：使用向量数据库存储角色记忆
+- **插件系统**：支持用户自定义插件
+- **多语言支持**：支持多种语言界面
+- **云同步**：支持云端同步数据
+
+---
+
+> 本设计思路文档反映了项目的当前状态和未来规划，随着项目的发展可能会有所调整。
+> 最后更新时间：2025年5月1日
