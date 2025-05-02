@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo, FC } from 'react'; // Import FC
+import React, { useState, useEffect, useRef, useCallback, useMemo, FC } from 'react'; // 导入函数组件类型 FC
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
     Input, Button, List, Spin, message, Typography, Card, Empty, Switch,
@@ -15,27 +15,27 @@ import type {
 } from '../types';
 import type { LLMChatOptions, StreamChunk } from '../../electron/llm/BaseLLM';
 import { useLastVisited } from '../hooks/useLastVisited';
-import { chatLogger } from '../utils/logger'; // Renamed import alias
+import { chatLogger } from '../utils/logger'; // 重命名后的导入别名
 
-// --- Types specific to this page ---
-type AIResponseMode = 'simultaneous' | 'sequential';
+// --- 此页面特定的类型 ---
+type AIResponseMode = 'simultaneous' | 'sequential'; // 同时或顺序回复模式
 
-// Define state for each AI's loading status
+// 定义各 AI 的加载状态
 type AILoadingState = Record<string, boolean>;
 
-// Extend ChatPageStateSnapshot for multi-AI specifics
+// 扩展 ChatPageStateSnapshot 用于多 AI 相关
 interface MultiAIChatPageStateSnapshot extends Omit<ChatPageStateSnapshot, 'chatConfig' | 'systemPrompt'> {
     chatConfig: ChatConfig & { mode: 'singleUserMultiAI' };
-    systemPrompts: Record<string, string>; // Save all system prompts
+    systemPrompts: Record<string, string>; // 存储所有系统提示词
     selectedTargetAIIds: string[];
     aiResponseMode: AIResponseMode;
     nextSequentialAIIndex?: number;
 }
 
-// --- Component Definition ---
+// --- 组件定义 ---
 const SingleUserMultiAIInterfacePage: FC = () => {
 
-    // --- ALL HOOKS MUST BE DECLARED AT THE TOP ---
+    // --- 所有 Hook 必须声明在顶部 ---
     const location = useLocation();
     const navigate = useNavigate();
     const { updateLastVisitedNavInfo, getLastVisitedNavInfo } = useLastVisited();
@@ -53,7 +53,7 @@ const SingleUserMultiAIInterfacePage: FC = () => {
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const { token: { colorBgContainer } } = theme.useToken();
 
-    // --- Memoized Derived State ---
+    // --- 记忆化派生状态 ---
     const userCharacter: AICharacter | undefined = useMemo(() =>
         chatConfig?.participatingCharacters.find((c: AICharacter) => c.id === chatConfig?.userCharacterId),
         [chatConfig]
@@ -63,7 +63,7 @@ const SingleUserMultiAIInterfacePage: FC = () => {
         [chatConfig]
     );
 
-    // --- Initial State Calculation Function ---
+    // --- 初始状态计算函数 ---
     const calculateAndSetInitialState = useCallback(() => {
         const restoredState = location.state as MultiAIChatPageStateSnapshot | ChatConfig | undefined;
         let errorMsg: string | null = null;
@@ -134,12 +134,12 @@ const SingleUserMultiAIInterfacePage: FC = () => {
         }
     }, [location.state, navigate]);
 
-    // --- useEffect FOR INITIAL STATE SETTING ---
+    // --- useEffect 用于初始化状态 ---
     useEffect(() => {
         calculateAndSetInitialState();
     }, [calculateAndSetInitialState]);
 
-    // --- useEffect FOR GENERATING PROMPTS/SESSION ID (if needed) ---
+    // --- useEffect 用于生成 prompts 和会话 ID（如有需要） ---
     useEffect(() => {
         let didCancel = false;
         if (initializationError || !chatConfig || (Object.keys(systemPrompts).length > 0 && chatSessionId)) {
@@ -190,7 +190,7 @@ const SingleUserMultiAIInterfacePage: FC = () => {
         return () => { didCancel = true; };
     }, [initializationError, chatConfig, userCharacter, aiCharacters, systemPrompts, chatSessionId, selectedTargetAIIds.length]);
 
-    // --- useEffect FOR SAVING STATE TO CONTEXT ---
+    // --- useEffect 用于保存状态到上下文 ---
     useEffect(() => {
         if (!initializationError && chatConfig && chatSessionId && Object.keys(systemPrompts).length > 0) {
             const currentStateSnapshot: MultiAIChatPageStateSnapshot = {
@@ -205,18 +205,18 @@ const SingleUserMultiAIInterfacePage: FC = () => {
         initializationError, updateLastVisitedNavInfo, location.pathname
     ]);
 
-    // --- useEffect FOR SCROLLING ---
+    // --- useEffect 用于滚动 ---
     useEffect(() => {
         if (!initializationError) {
             messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
         }
     }, [messages, initializationError]);
 
-    // --- Forward declaration for triggerNextSequentialAI ---
-    // We need this because sendToSingleAI depends on triggerNextSequentialAI, and vice-versa
-    const triggerNextSequentialAIRef = useRef<(currentHistory: ChatMessage[]) => void>(undefined); // Provide initial value
+    // --- triggerNextSequentialAI 前置声明 ---
+    // 需要这样做，因为 sendToSingleAI 依赖 triggerNextSequentialAI，反之亦然
+    const triggerNextSequentialAIRef = useRef<(currentHistory: ChatMessage[]) => void>(undefined);
 
-    // --- useCallback FOR SENDING TO SINGLE AI ---
+    // --- useCallback 用于发送消息给单个 AI ---
     const sendToSingleAI = useCallback(async (aiChar: AICharacter, history: ChatMessage[]) => {
         if (!chatConfig || !systemPrompts[aiChar.id] || !chatSessionId || initializationError) {
             chatLogger.warn(`Cannot send message to ${aiChar.name}, missing config/prompt/session or init error.`);
@@ -234,7 +234,7 @@ const SingleUserMultiAIInterfacePage: FC = () => {
         try {
             const llmHistory = history.map(msg => ({
                 role: (msg.role === 'user' ? 'user' : 'assistant') as 'user' | 'assistant',
-                content: `${msg.characterName}: ${msg.content}` // Keep prefix for context
+                content: `${msg.characterName}: ${msg.content}` // 保留前缀用于上下文
             }));
 
             const options: LLMChatOptions = {
@@ -249,19 +249,19 @@ const SingleUserMultiAIInterfacePage: FC = () => {
                     role: 'assistant', characterId: aiChar.id, characterName: aiChar.name, content: '', timestamp: Date.now(),
                 };
                 setMessages(prev => [...prev, placeholderMessage]);
-                // Pass aiCharacterId as the third argument
+                // 传入 aiCharacterId 作为第三个参数
                 const startResult = await window.electronAPI.llmGenerateChatStream(aiConfig.providerId, options, aiChar.id);
 
                 if (!startResult.success) {
                     message.error(`启动 AI (${aiChar.name}) 流式响应失败: ${startResult.error || '未知错误'}`);
                     setAILoadingState(prev => ({ ...prev, [aiChar.id]: false }));
                     setMessages(prev => prev.filter(m => !(m.characterId === aiChar.id && m.content === '' && m.role === 'assistant')));
-                    // Stream listener's error handler will call triggerNextSequentialAI
+                    // 流式监听器的错误处理会调用 triggerNextSequentialAI
                 } else {
                     chatLogger.info(`AI (${aiChar.name}) 流式响应已启动。`);
                 }
             } else {
-                // --- Non-streaming ---
+                // --- 非流式 ---
                 try {
                     const result = await window.electronAPI.llmGenerateChat(aiConfig.providerId, options);
                     chatLogger.info(`Received non-stream response from ${aiChar.name}:`, result);
@@ -273,7 +273,7 @@ const SingleUserMultiAIInterfacePage: FC = () => {
                         setMessages(prev => [...prev, aiResponse]);
                         if (aiResponseMode === 'sequential') {
                              setMessages(currentMsgState => {
-                                // Use the ref to call the latest trigger function
+                                // 使用 ref 调用最新的 trigger 函数
                                 triggerNextSequentialAIRef.current?.(currentMsgState);
                                 return currentMsgState;
                             });
@@ -298,7 +298,7 @@ const SingleUserMultiAIInterfacePage: FC = () => {
                      }
                 } finally {
                     setAILoadingState(prev => ({ ...prev, [aiChar.id]: false }));
-                    // Trigger handled inside try/catch/success for non-streaming
+                    // 非流式的触发逻辑已在上面处理
                 }
             }
         } catch (error: unknown) {
@@ -312,14 +312,14 @@ const SingleUserMultiAIInterfacePage: FC = () => {
                 });
             }
         }
-    // Dependencies
+    // 依赖项
     }, [
         chatConfig, systemPrompts, chatSessionId, isStreamingEnabled,
-        initializationError, aiResponseMode, /* triggerNextSequentialAI Ref used instead */ setMessages, setAILoadingState
+        initializationError, aiResponseMode, setMessages, setAILoadingState
     ]);
 
-    // --- useCallback FOR TRIGGERING NEXT SEQUENTIAL AI ---
-    // Now define the actual trigger function
+    // --- useCallback 用于触发下一个顺序 AI ---
+    // 现在定义实际的触发函数
     const triggerNextSequentialAI = useCallback((currentHistory: ChatMessage[]) => {
         if (initializationError || aiCharacters.length === 0) return;
 
@@ -332,23 +332,22 @@ const SingleUserMultiAIInterfacePage: FC = () => {
             const nextAI = targetAIsInOrder[nextSequentialAIIndex];
             chatLogger.info(`Sequential mode: Sending to next AI: ${nextAI.name} (index ${nextSequentialAIIndex})`);
             setNextSequentialAIIndex(currentIndex => currentIndex + 1);
-            // Call sendToSingleAI directly now
+            // 直接调用 sendToSingleAI
             sendToSingleAI(nextAI, currentHistory);
         } else {
             chatLogger.info('Sequential mode: All AIs have responded.');
-            setNextSequentialAIIndex(0); // Reset index
+            setNextSequentialAIIndex(0); // 重置索引
         }
-    // Dependencies
+    // 依赖项
     }, [initializationError, aiCharacters, nextSequentialAIIndex, selectedTargetAIIds, sendToSingleAI, setNextSequentialAIIndex]);
 
-    // --- Update the ref on every render ---
-    // This ensures sendToSingleAI always calls the latest version of triggerNextSequentialAI
+    // --- 在每次渲染时更新 ref ---
+    // 确保 sendToSingleAI 始终调用最新版本的 triggerNextSequentialAI
      useEffect(() => {
         triggerNextSequentialAIRef.current = triggerNextSequentialAI;
      });
 
-
-     // --- useEffect FOR STREAM LISTENERS (Unified Handler) ---
+     // --- useEffect 用于统一处理流式监听器 ---
      useEffect(() => {
          if (initializationError) return;
 
@@ -371,7 +370,7 @@ const SingleUserMultiAIInterfacePage: FC = () => {
                  return;
              }
 
-             // --- Update message content ---
+             // --- 更新消息内容 ---
              if (chunk.text) {
                  setMessages(prevMessages => {
                      let targetMessageIndex = -1;
@@ -400,7 +399,7 @@ const SingleUserMultiAIInterfacePage: FC = () => {
                  });
              }
 
-             // --- Handle errors ---
+             // --- 处理错误 ---
              if (chunk.error) {
                  message.error(`AI (${aiChar.name}) 流式响应出错: ${chunk.error}`);
                  setAILoadingState(prev => ({ ...prev, [aiCharacterId]: false }));
@@ -420,14 +419,13 @@ const SingleUserMultiAIInterfacePage: FC = () => {
                  });
                  if (aiResponseMode === 'sequential') {
                     setMessages(currentMsgState => {
-                        // Use the ref here as well
                         triggerNextSequentialAIRef.current?.(currentMsgState);
                         return currentMsgState;
                     });
                  }
              }
 
-             // --- Handle completion ---
+             // --- 处理完成 ---
              if (chunk.done) {
                  chatLogger.info(`AI (${aiChar.name}) 流式响应完成。`);
                  setAILoadingState(prev => ({ ...prev, [aiCharacterId]: false }));
@@ -456,7 +454,7 @@ const SingleUserMultiAIInterfacePage: FC = () => {
 
                  if (aiResponseMode === 'sequential') {
                     setMessages(currentMsgState => {
-                         // Use the ref here as well
+                         // 使用 ref 调用
                         triggerNextSequentialAIRef.current?.(currentMsgState);
                         return currentMsgState;
                     });
@@ -483,10 +481,9 @@ const SingleUserMultiAIInterfacePage: FC = () => {
          nextSequentialAIIndex,
          selectedTargetAIIds,
          systemPrompts
-     ]); // 添加所有依赖项
+     ]);
 
-
-    // --- Handle User Message Sending ---
+    // --- 处理用户消息发送 ---
     const handleSendMessage = () => {
         if (!inputValue.trim() || !userCharacter || initializationError) return;
         const isAnyAILoading = Object.values(aiLoadingState).some(loading => loading);
@@ -526,7 +523,7 @@ const SingleUserMultiAIInterfacePage: FC = () => {
                 .catch(err => message.error(`保存聊天记录失败: ${err}`));
         }
 
-        // Trigger AI responses
+        // 触发 AI 回复
         const targetAIs = selectedTargetAIIds
             .map(id => aiCharacters.find((c: AICharacter) => c.id === id))
             .filter((c): c is AICharacter => !!c);
@@ -534,7 +531,7 @@ const SingleUserMultiAIInterfacePage: FC = () => {
         if (aiResponseMode === 'simultaneous') {
             chatLogger.info(`Simultaneous mode: Sending message to ${targetAIs.length} AIs.`);
             targetAIs.forEach(ai => sendToSingleAI(ai, updatedMessages));
-        } else { // Sequential mode
+        } else { // 顺序模式
             chatLogger.info(`Sequential mode: Starting sequence with ${targetAIs.length} AIs.`);
             setNextSequentialAIIndex(0);
             setTimeout(() => {
@@ -553,7 +550,7 @@ const SingleUserMultiAIInterfacePage: FC = () => {
         }
     };
 
-    // --- Input Handling ---
+    // --- 输入处理 ---
     const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => { setInputValue(e.target.value); };
     const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
         const isAnyAILoading = Object.values(aiLoadingState).some(loading => loading);
@@ -562,11 +559,11 @@ const SingleUserMultiAIInterfacePage: FC = () => {
         }
     };
 
-    // --- Control Handlers ---
+    // --- 控制项处理函数 ---
     const handleTargetAIChange = (checkedValues: (string | number | boolean)[]) => { setSelectedTargetAIIds(checkedValues as string[]); };
     const handleResponseModeChange = (e: RadioChangeEvent) => { setAiResponseMode(e.target.value); setNextSequentialAIIndex(0); };
 
-    // --- Message Rendering ---
+    // --- 消息渲染 ---
     const renderMessage = (item: ChatMessage) => {
         const isUser = item.role === 'user';
         const isLoading = item.role === 'assistant' && aiLoadingState[item.characterId];
@@ -599,24 +596,33 @@ const SingleUserMultiAIInterfacePage: FC = () => {
         );
     };
 
-    // --- RENDER LOGIC ---
-    if (initializationError) { return <div style={{ padding: 20 }}><Typography.Text type="danger">{initializationError}</Typography.Text></div>; }
+    // --- 渲染逻辑 ---
+    if (initializationError) {
+        return <div style={{ padding: 20 }}><Typography.Text type="danger">{initializationError}</Typography.Text></div>;
+    }
     if (!chatConfig || !userCharacter) {
-        return ( <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 'calc(100vh - 100px)' }}><Spin tip="加载聊天配置中..." size="large" /></div> );
+        return (
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 'calc(100vh - 100px)' }}>
+                <Spin tip="加载聊天配置中..." size="large" />
+            </div>
+        );
     }
     const isOverallLoading = Object.values(aiLoadingState).some(loading => loading);
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 5px)' }}>
-            {/* Header */}
+            {/* 头部 */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', margin: '10px 0', flexShrink: 0 }}>
-                <Button icon={<ArrowLeftOutlined />} onClick={() => { const setupNavInfo = getLastVisitedNavInfo('singleUserMultiAISetup', '/single-user-multi-ai-setup'); navigate(setupNavInfo.path, { state: setupNavInfo.internalState }); }} style={{ position: 'absolute', left: 10 }} aria-label="返回聊天设置" />
+                <Button icon={<ArrowLeftOutlined />} onClick={() => {
+                    const setupNavInfo = getLastVisitedNavInfo('singleUserMultiAISetup', '/single-user-multi-ai-setup');
+                    navigate(setupNavInfo.path, { state: setupNavInfo.internalState });
+                }} style={{ position: 'absolute', left: 10 }} aria-label="返回聊天设置" />
                 <div style={{ textAlign: 'center' }}>
                     <Typography.Title level={4} style={{ margin: 0, lineHeight: 1.2 }}>剧本：{chatConfig.script.title}</Typography.Title>
                     <Typography.Text type="secondary" style={{ fontSize: '12px' }}>你扮演：{userCharacter.name} | AI角色：{aiCharacters.map(c => c.name).join(', ')}</Typography.Text>
                 </div>
             </div>
-            {/* AI Selection & Mode Controls */}
+            {/* AI 选择和模式控制 */}
             <Card size="small" style={{ margin: '0 10px 10px 10px', flexShrink: 0 }}>
                 <Row gutter={16} align="middle">
                     <Col flex="auto">
@@ -625,34 +631,59 @@ const SingleUserMultiAIInterfacePage: FC = () => {
                     </Col>
                     <Col>
                         <Radio.Group onChange={handleResponseModeChange} value={aiResponseMode} buttonStyle="solid" disabled={isOverallLoading}>
-                            <Tooltip title="选中的 AI 将同时收到消息并回复"><Radio.Button value="simultaneous"><SyncOutlined /> 同时回复</Radio.Button></Tooltip>
-                            <Tooltip title="选中的 AI 将按选择顺序依次回复"><Radio.Button value="sequential"><OrderedListOutlined /> 顺序回复</Radio.Button></Tooltip>
+                            <Tooltip title="选中的 AI 将同时收到消息并回复">
+                                <Radio.Button value="simultaneous"><SyncOutlined /> 同时回复</Radio.Button>
+                            </Tooltip>
+                            <Tooltip title="选中的 AI 将按选择顺序依次回复">
+                                <Radio.Button value="sequential"><OrderedListOutlined /> 顺序回复</Radio.Button>
+                            </Tooltip>
                         </Radio.Group>
-                        <Tooltip title="同时回复：您的消息会发给所有选中的AI，它们会同时开始思考并回复。\n顺序回复：您的消息会先发给第一个选中的AI，等它回复后，再连同它的回复一起发给第二个选中的AI，以此类推。"><QuestionCircleOutlined style={{ marginLeft: 8, color: '#888', cursor: 'help' }} /></Tooltip>
+                        <Tooltip title="同时回复：您的消息会发给所有选中的AI，它们会同时开始思考并回复。\n顺序回复：您的消息会先发给第一个选中的AI，等它回复后，再连同它的回复一起发给第二个选中的AI，以此类推。">
+                            <QuestionCircleOutlined style={{ marginLeft: 8, color: '#888', cursor: 'help' }} />
+                        </Tooltip>
                     </Col>
                 </Row>
             </Card>
-            {/* Chat Area */}
+            {/* 聊天区域 */}
             <Card variant="borderless" style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', background: colorBgContainer, padding: 0, margin: '0 10px 10px 10px', overflow: 'hidden' }} styles={{ body: { padding: 0, display: 'flex', flexDirection: 'column', flexGrow: 1, overflow: 'hidden' } }}>
-                {/* Message List */}
-                <div style={{ flexGrow: 1, overflowY: 'auto', padding: '10px', }}>
-                    {messages.length === 0 ? ( <Empty description="开始你们的对话吧！" style={{ paddingTop: '20vh' }} /> ) : ( <List dataSource={messages} renderItem={renderMessage} split={false} /> )}
+                {/* 消息列表 */}
+                <div style={{ flexGrow: 1, overflowY: 'auto', padding: '10px' }}>
+                    {messages.length === 0 ? (
+                        <Empty description="开始你们的对话吧！" style={{ paddingTop: '20vh' }} />
+                    ) : (
+                        <List dataSource={messages} renderItem={renderMessage} split={false} />
+                    )}
                     <div ref={messagesEndRef} />
                 </div>
-                {/* Input Area */}
+                {/* 输入区域 */}
                 <div style={{ position: 'relative', padding: '10px', borderTop: '1px solid #f0f0f0', flexShrink: 0 }}>
-                    <Input.TextArea placeholder={`以 ${userCharacter?.name ?? '你'} 的身份发言... (Shift+Enter 换行)`} value={inputValue} onChange={handleInputChange} onKeyDown={handleKeyDown} disabled={isOverallLoading} autoSize={{ minRows: 3, maxRows: 3 }} style={{ paddingBottom: '40px', paddingRight: '90px', resize: 'none', fontSize: '15px', lineHeight: '1.6', overflowY: 'auto' }} />
+                    <Input.TextArea
+                        placeholder={`以 ${userCharacter?.name ?? '你'} 的身份发言... (Shift+Enter 换行)`}
+                        value={inputValue}
+                        onChange={handleInputChange}
+                        onKeyDown={handleKeyDown}
+                        disabled={isOverallLoading}
+                        autoSize={{ minRows: 3, maxRows: 3 }}
+                        style={{ paddingBottom: '40px', paddingRight: '90px', resize: 'none', fontSize: '15px', lineHeight: '1.6', overflowY: 'auto' }}
+                    />
                     <div style={{ position: 'absolute', bottom: '50px', right: '40px', zIndex: 1 }}>
                         <Space size="small" direction="vertical" align="center">
                             <Switch checked={isStreamingEnabled} onChange={setIsStreamingEnabled} size="small" disabled={isOverallLoading} />
                             <Typography.Text style={{ fontSize: '12px', color: '#888' }}>流式</Typography.Text>
                         </Space>
                     </div>
-                    <Button type="primary" icon={<SendOutlined />} onClick={handleSendMessage} loading={isOverallLoading} disabled={!inputValue.trim() || isOverallLoading || selectedTargetAIIds.length === 0} style={{ position: 'absolute', bottom: '18px', right: '40px', zIndex: 1 }} />
+                    <Button
+                        type="primary"
+                        icon={<SendOutlined />}
+                        onClick={handleSendMessage}
+                        loading={isOverallLoading}
+                        disabled={!inputValue.trim() || isOverallLoading || selectedTargetAIIds.length === 0}
+                        style={{ position: 'absolute', bottom: '18px', right: '40px', zIndex: 1 }}
+                    />
                 </div>
             </Card>
         </div>
     );
-}; // End of component function
+}; // 组件函数结束
 
 export default SingleUserMultiAIInterfacePage;
