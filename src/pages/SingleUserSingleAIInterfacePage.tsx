@@ -183,7 +183,7 @@ prompt += `\n与你对话的是由人类用户扮演的角色: **${userChar.name
         };
         // 使用 location.pathname 获取当前路径
         updateLastVisitedNavInfo('singleUserSingleAIInterface', location.pathname, undefined, currentStateSnapshot); // <-- 使用更明确的 key
-        // console.log('[ChatInterface] Updated context with current state snapshot.'); // 减少日志
+ 
     }
   }, [messages, inputValue, chatConfig, systemPrompt, chatSessionId, isStreamingEnabled, updateLastVisitedNavInfo, location.pathname]);
 
@@ -198,7 +198,7 @@ prompt += `\n与你对话的是由人类用户扮演的角色: **${userChar.name
   useEffect(() => {
     // 定义处理函数
     const handleStreamChunk = (chunkData: unknown) => {
-      // console.log('[ChatInterface] Received stream chunk:', chunkData); // 调试日志
+ 
       // 类型守卫，确保 chunkData 是对象且符合 StreamChunk 结构
       if (typeof chunkData !== 'object' || chunkData === null) return;
 

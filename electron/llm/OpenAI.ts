@@ -34,14 +34,14 @@ export class OpenAILLM extends BaseLLM {
         };
 
         this.openai = new OpenAI(clientOptions);
-        console.log(`OpenAI client initialized for provider: ${this.providerId}`);
+        console.log(`OpenAI 客户端已为提供商 ${this.providerId} 初始化完成`);
       } catch (error) {
-         console.error(`Failed to initialize OpenAI client for ${this.providerId}:`, error);
+         console.error(`为提供商 ${this.providerId} 初始化 OpenAI 客户端失败：`, error);
          this.openai = null; // 初始化失败，重置客户端
       }
     } else {
       this.openai = null; // API Key 移除，销毁客户端
-      console.log(`OpenAI client destroyed for provider: ${this.providerId}`);
+      console.log(`OpenAI 客户端已为提供商 ${this.providerId} 销毁`);
     }
   }
 
@@ -77,16 +77,15 @@ export class OpenAILLM extends BaseLLM {
           params.messages.unshift({ role: 'system', content: options.systemPrompt });
         } else {
           // 如果已有 system 消息，可以选择替换或忽略新的，这里选择忽略
-          console.warn('System prompt already exists in messages, ignoring new systemPrompt option.');
+          console.warn('已存在 system 提示，忽略新的 systemPrompt 选项。');
         }
       }
 
-
-      console.log(`[OpenAI] Sending request to model ${options.model} with params:`, JSON.stringify(params, null, 2));
+      console.log(`正在向模型 ${options.model} 发送请求，参数:`, JSON.stringify(params, null, 2));
 
       const completion: OpenAI.Chat.ChatCompletion = await this.openai.chat.completions.create(params);
 
-      console.log('[OpenAI] Received completion:', JSON.stringify(completion, null, 2));
+      console.log('已接收完成结果:', JSON.stringify(completion, null, 2));
 
       const content = completion.choices[0]?.message?.content ?? '';
       const usage = completion.usage;
@@ -102,9 +101,8 @@ export class OpenAILLM extends BaseLLM {
         },
         // rawResponse: completion, // 移除原始响应
       };
-
     } catch (error: unknown) {
-      console.error(`[OpenAI] Error during chat completion for model ${options.model}:`, error);
+      console.error(`模型 ${options.model} 聊天完成时出错：`, error);
       let detailedError = '与 OpenAI API 通信时发生未知错误';
       if (error instanceof Error) {
         detailedError = error.message;
@@ -134,7 +132,7 @@ export class OpenAILLM extends BaseLLM {
       }
 
       // 只返回错误消息字符串
-      return { content: '', error: detailedError /* rawResponse: error */ }; // 移除原始错误对象
+      return { content: '', error: detailedError /* rawResponse: error */ };
     }
   }
 
@@ -163,11 +161,11 @@ export class OpenAILLM extends BaseLLM {
         if (!params.messages.some(m => m.role === 'system')) {
           params.messages.unshift({ role: 'system', content: options.systemPrompt });
         } else {
-          console.warn('[OpenAI Stream] System prompt already exists, ignoring new systemPrompt option.');
+          console.warn('【OpenAI 流】已存在 system 提示，忽略新的 systemPrompt 选项。');
         }
       }
 
-      console.log(`[OpenAI Stream] Sending request to model ${options.model}`);
+      console.log(`【OpenAI 流】正在向模型 ${options.model} 发送请求`);
 
       const stream = await this.openai.chat.completions.create(params);
 
@@ -177,8 +175,6 @@ export class OpenAILLM extends BaseLLM {
       for await (const chunk of stream) {
         const content = chunk.choices[0]?.delta?.content;
         const currentFinishReason = chunk.choices[0]?.finish_reason;
-        // OpenAI v4 SDK 在 stream=true 时，usage 可能在最后一个 chunk 返回
-        // const currentUsage = chunk.usage; // v4 SDK 中 usage 不在流式 chunk 中
 
         if (content) {
           yield { text: content };
@@ -186,25 +182,16 @@ export class OpenAILLM extends BaseLLM {
 
         if (currentFinishReason) {
           finishReason = currentFinishReason;
-          console.log(`[OpenAI Stream] Finish reason received: ${finishReason}`);
-          // 在 OpenAI v4 中，usage 信息通常在非流式响应或流结束后单独获取，
-          // 流式 chunk 本身不包含完整的 usage。
-          // 如果需要估算，可以在这里累加 token，但通常不准确。
-          // 这里我们只记录 finish_reason，不 yield usage。
+          console.log(`【OpenAI 流】接收到结束原因: ${finishReason}`);
         }
-
-        // 可以在这里检查是否有其他需要处理的信息，比如 tool_calls
-
       }
 
-      console.log(`[OpenAI Stream] Stream finished for model ${options.model}. Finish reason: ${finishReason}`);
+      console.log(`【OpenAI 流】模型 ${options.model} 的流已结束。结束原因: ${finishReason}`);
       // 流结束后发送 done 信号
-      yield { done: true, modelUsed: options.model }; // 移除 usage
-
+      yield { done: true, modelUsed: options.model };
     } catch (error: unknown) {
-      console.error(`[OpenAI Stream] Error during stream chat completion for model ${options.model}:`, error);
+      console.error(`模型 ${options.model} 流式聊天完成时出错：`, error);
       let detailedError = '与 OpenAI API 通信时发生未知错误';
-       // 复用非流式方法的错误处理逻辑
       if (error instanceof Error) {
         detailedError = error.message;
         if (error && typeof error === 'object' && 'response' in error) {

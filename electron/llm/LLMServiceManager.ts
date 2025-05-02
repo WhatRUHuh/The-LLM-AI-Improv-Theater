@@ -17,19 +17,19 @@ class LLMServiceManager {
    * 初始化管理器，手动注册已知的服务提供商。
    */
   async initialize(): Promise<void> {
-    console.log('[LLM Manager] Initializing (Manual Registration Mode)...');
+    console.log('[LLM 管理器] 初始化（手动注册模式）...');
 
     // --- 手动注册 OpenAI ---
     try {
       const openAIService = new OpenAILLM();
       if (openAIService.providerId) {
         this.services.set(openAIService.providerId, openAIService);
-        console.log(`[LLM Manager] Manually registered provider: ${openAIService.providerId} (${openAIService.providerName})`);
+        console.log(`[LLM 管理器] 手动注册服务商: ${openAIService.providerId} (${openAIService.providerName})`);
       } else {
-         console.error('[LLM Manager] Failed to register OpenAI: Missing providerId.');
+         console.error('[LLM 管理器] 注册 OpenAI 失败：缺少 providerId。');
       }
     } catch (error) {
-       console.error('[LLM Manager] Error instantiating OpenAI service:', error);
+       console.error('【LLM 管理器】 实例化 OpenAI 服务时出错：', error);
     }
 
     // --- 手动注册 Anthropic ---
@@ -37,12 +37,12 @@ class LLMServiceManager {
       const anthropicService = new AnthropicLLM();
       if (anthropicService.providerId) {
         this.services.set(anthropicService.providerId, anthropicService);
-        console.log(`[LLM Manager] Manually registered provider: ${anthropicService.providerId} (${anthropicService.providerName})`);
+        console.log(`[LLM 管理器] 手动注册服务商: ${anthropicService.providerId} (${anthropicService.providerName})`);
       } else {
-         console.error('[LLM Manager] Failed to register Anthropic: Missing providerId.');
+         console.error('[LLM 管理器] 注册 Anthropic 失败：缺少 providerId。');
       }
     } catch (error) {
-       console.error('[LLM Manager] Error instantiating Anthropic service:', error);
+       console.error('【LLM 管理器】 实例化 Anthropic 服务时出错：', error);
     }
 
     // --- 手动注册 Google ---
@@ -50,15 +50,15 @@ class LLMServiceManager {
       const googleService = new GoogleLLM();
       if (googleService.providerId) {
         this.services.set(googleService.providerId, googleService);
-        console.log(`[LLM Manager] Manually registered provider: ${googleService.providerId} (${googleService.providerName})`);
+        console.log(`[LLM 管理器] 手动注册服务商: ${googleService.providerId} (${googleService.providerName})`);
       } else {
-         console.error('[LLM Manager] Failed to register Google: Missing providerId.');
+         console.error('[LLM 管理器] 注册 Google 失败：缺少 providerId。');
       }
     } catch (error) {
-       console.error('[LLM Manager] Error instantiating Google service:', error);
+       console.error('【LLM 管理器】 实例化 Google 服务时出错：', error);
     }
 
-    console.log(`[LLM Manager] Initialization complete. Loaded providers: ${[...this.services.keys()].join(', ')}`);
+    console.log(`[LLM 管理器] 初始化完成。已加载服务商: ${[...this.services.keys()].join(', ')}`);
   }
 
   /**
@@ -66,7 +66,7 @@ class LLMServiceManager {
    * @returns BaseLLM 实例数组
    */
   getAllServices(): BaseLLM[] {
-    console.log('[LLM Manager] getAllServices called.');
+    console.log('[LLM 管理器] getAllServices 被调用。');
     return Array.from(this.services.values());
   }
 
@@ -77,7 +77,7 @@ class LLMServiceManager {
    */
   getService(providerId: string): BaseLLM | undefined {
     const service = this.services.get(providerId.toLowerCase());
-    console.log(`[LLM Manager] getService called for ${providerId}. Found: ${!!service}`);
+    console.log(`[LLM 管理器] getService 被调用，服务商: ${providerId}，是否找到: ${!!service}`);
     return service;
   }
 
@@ -88,13 +88,13 @@ class LLMServiceManager {
    * @returns 是否成功设置 (找到服务商)
    */
   setApiKeyForService(providerId: string, apiKey: string | null): boolean {
-    console.log(`[LLM Manager] setApiKeyForService called for ${providerId}`);
+    console.log(`[LLM 管理器] setApiKeyForService 被调用，服务商: ${providerId}`);
     const service = this.getService(providerId);
     if (service) {
       service.setApiKey(apiKey);
       return true;
     }
-    console.warn(`[LLM Manager] Attempted to set API Key for unknown provider: ${providerId}`);
+    console.warn(`[LLM 管理器] 尝试为未知服务商设置 API Key：${providerId}`);
     return false;
   }
 }

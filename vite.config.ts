@@ -27,7 +27,7 @@ export default defineConfig({
         entry: 'electron/main.ts',
         // 确保在开发模式下监听文件变化
         onstart(options) {
-          console.log('[electron-main] Electron App started');
+          console.log('[electron-main] Electron 应用已启动');
           options.startup();
         },
         vite: {
@@ -51,7 +51,7 @@ export default defineConfig({
           plugins: [{
             name: 'electron-main-watcher',
             buildStart() {
-              console.log('[electron-main-watcher] Watching electron main process files');
+              console.log('[electron-main-watcher] 正在监视 Electron 主进程文件');
             }
           }],
           // 明确指定要监听的文件
@@ -84,7 +84,7 @@ export default defineConfig({
           plugins: [{
             name: 'electron-preload-watcher',
             buildStart() {
-              console.log('[electron-preload-watcher] Watching electron preload files');
+              console.log('[electron-preload-watcher] 正在监视 Electron 预加载文件');
             }
           }],
           // 明确指定要监听的文件

@@ -19,8 +19,6 @@ interface LoggerConfig {
   colorfulConsole?: boolean; // 是否在控制台输出彩色日志
 }
 
-// 日志级别对应的样式
-
 // 控制台样式
 const ConsoleStyle = {
   Reset: '',
@@ -60,16 +58,10 @@ export class Logger {
     const timestamp = this.showTimestamp ? `[${new Date().toLocaleString('zh-CN')}] ` : '';
     const prefix = this.prefix ? `[${this.prefix}] ` : '';
     const levelStr = `[${level}] `;
-
-    // 注意：我们不再需要在这里格式化args，因为我们在实际输出时会直接传递args
-    // 这样可以保持对象在控制台中的可展开性，提高调试体验
-
     const baseMessage = `${timestamp}${prefix}${levelStr}${message}`;
 
-    // 如果启用了彩色输出，根据日志级别添加颜色
     if (this.colorfulConsole) {
       let style = '';
-
       if (level === '调试') {
         style = ConsoleStyle.Debug;
       } else if (level === '信息') {
@@ -79,13 +71,11 @@ export class Logger {
       } else if (level === '错误') {
         style = ConsoleStyle.Error;
       }
-
       return {
-        message: `%c${baseMessage}`, // 使用%c作为样式标记
+        message: `%c${baseMessage}`,
         style
       };
     }
-
     return { message: baseMessage };
   }
 

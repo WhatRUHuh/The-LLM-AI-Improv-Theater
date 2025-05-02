@@ -42,14 +42,14 @@ export class GoogleLLM extends BaseLLM {
       try {
         // 使用新库的构造函数, 传入包含 apiKey 的对象
         this.sdk = new GoogleGenAI({ apiKey: apiKey } /*, { httpOptions } */);
-        console.log(`[GoogleLLM] Google Gemini client initialized for provider: ${this.providerId}`);
+        console.log(`Google Gemini 客户端已为提供商 ${this.providerId} 初始化完成`);
       } catch (error) {
-         console.error(`[GoogleLLM] Failed to initialize Google Gemini client for ${this.providerId}:`, error);
+         console.error(`为提供商 ${this.providerId} 初始化 Google Gemini 客户端失败：`, error);
          this.sdk = null;
       }
     } else {
       this.sdk = null;
-      console.log(`[GoogleLLM] Google Gemini client destroyed for provider: ${this.providerId}`);
+      console.log(`Google Gemini 客户端已为提供商 ${this.providerId} 销毁`);
     }
   }
 
@@ -62,13 +62,13 @@ export class GoogleLLM extends BaseLLM {
 
     const filteredMessages = messages.filter(msg => msg.role === 'user' || msg.role === 'assistant');
     if (filteredMessages.length > 0 && filteredMessages[0].role !== 'user') {
-        console.warn('[GoogleLLM] History does not start with a user message. Adjusting...');
+        console.warn('[GoogleLLM] 历史记录未以用户消息开始，已进行调整。');
     }
 
     for (const message of filteredMessages) {
       const currentRole = message.role === 'assistant' ? 'model' : 'user';
       if (history.length > 0 && currentRole === lastRole) {
-         console.warn(`[GoogleLLM] Consecutive messages with role '${currentRole}' detected. Merging content.`);
+         console.warn(`[GoogleLLM] 检测到连续的 '${currentRole}' 角色消息，已合并内容。`);
          const lastContent = history[history.length - 1];
          if (!Array.isArray(lastContent.parts)) {
             lastContent.parts = [];
@@ -84,7 +84,7 @@ export class GoogleLLM extends BaseLLM {
     }
 
     if (history.length > 0 && history[history.length - 1].role === 'model') {
-        console.warn('[GoogleLLM] History ends with a model message. Removing the last message for chat context.');
+        console.warn('[GoogleLLM] 历史记录以模型消息结尾，已移除最后一条消息以作为聊天上下文。');
         history.pop();
     }
     return history;
@@ -129,30 +129,30 @@ export class GoogleLLM extends BaseLLM {
       if (lastUserMessage?.role === 'user') {
           lastUserMessageContent = lastUserMessage.content;
       } else {
-          console.error('[GoogleLLM] The last message is not from the user.');
+          console.error('[GoogleLLM] 最后一条消息不是用户发送的。');
           return { content: '', error: '内部错误：聊天历史格式不正确，最后一条消息必须是用户消息。' };
       }
 
-      console.log(`[GoogleLLM] Sending message to model ${options.model}: "${lastUserMessageContent}" with history length: ${history.length}`);
+      console.log(`[GoogleLLM] 正在向模型 ${options.model} 发送消息："${lastUserMessageContent}"，历史长度：${history.length}`);
 
       const result = await chat.sendMessage({ message: lastUserMessageContent });
 
-      console.log('[GoogleLLM] Received result');
+      console.log('[GoogleLLM] 已接收结果');
 
       const responseText = result.text;
 
       if (result.promptFeedback?.blockReason) {
          const blockReason: BlockedReason = result.promptFeedback.blockReason;
-         console.error(`[GoogleLLM] Request blocked due to safety settings: ${blockReason}`);
+         console.error(`[GoogleLLM] 请求因安全策略被阻止：${blockReason}`);
          return { content: '', error: `请求被安全策略阻止: ${blockReason}` };
       }
       const finishReason = result.candidates?.[0]?.finishReason;
       if (!responseText && finishReason && finishReason !== FinishReason.STOP && finishReason !== FinishReason.MAX_TOKENS) {
-         console.error(`[GoogleLLM] Response generation stopped unexpectedly: ${finishReason}`);
+         console.error(`[GoogleLLM] 响应生成意外中止：${finishReason}`);
          return { content: '', error: `响应生成中止: ${finishReason}` };
       }
        if (!responseText && (!finishReason || finishReason === FinishReason.STOP || finishReason === FinishReason.MAX_TOKENS) && !result.promptFeedback?.blockReason) {
-           console.warn('[GoogleLLM] Received empty content without explicit block or unexpected stop reason.');
+           console.warn('[GoogleLLM] 未接收到内容，且无阻止或意外中止原因。');
            return { content: '', modelUsed: options.model };
        }
 
@@ -162,7 +162,7 @@ export class GoogleLLM extends BaseLLM {
       };
 
     } catch (error: unknown) {
-      console.error(`[GoogleLLM] Error during chat completion for model ${options.model}:`, error);
+      console.error(`[GoogleLLM] 模型 ${options.model} 聊天完成时出错：`, error);
       let detailedError = '与 Google API 通信时发生未知错误';
       if (error instanceof Error) {
         detailedError = error.message;
@@ -201,7 +201,7 @@ export class GoogleLLM extends BaseLLM {
     if (lastUserMessage?.role === 'user') {
         lastUserMessageContent = lastUserMessage.content;
     } else {
-        console.error('[GoogleLLM Stream] The last message is not from the user.');
+        console.error('[GoogleLLM Stream] 最后一条消息不是用户发送的。');
         yield { error: '内部错误：聊天历史格式不正确，最后一条消息必须是用户消息。', done: true };
         return;
     }
@@ -215,7 +215,7 @@ export class GoogleLLM extends BaseLLM {
     try { // 外层 try...catch 捕获 API 调用和流处理中的错误
         if (history.length === 0) {
             // --- 处理第一次请求 (无历史记录) ---
-            console.log(`[GoogleLLM Stream] Sending first message using generateContentStream to model ${options.model}: "${lastUserMessageContent}"`);
+            console.log(`[GoogleLLM Stream] 正在使用 generateContentStream 向模型 ${options.model} 发送第一条消息："${lastUserMessageContent}"`);
             // 调用 generateContentStream，传递包含所有参数的对象
             stream = await this.sdk.models.generateContentStream({
                 model: options.model,
@@ -229,7 +229,7 @@ export class GoogleLLM extends BaseLLM {
             });
         } else {
             // --- 处理后续请求 (有历史记录) ---
-            console.log(`[GoogleLLM Stream] Sending message using chat.sendMessageStream to model ${options.model}: "${lastUserMessageContent}" with history length: ${history.length}`);
+            console.log(`[GoogleLLM Stream] 正在使用 chat.sendMessageStream 向模型 ${options.model} 发送消息："${lastUserMessageContent}"，历史长度：${history.length}`);
             const chat = this.sdk.chats.create({
                 model: options.model,
                 history: history,
@@ -250,28 +250,28 @@ export class GoogleLLM extends BaseLLM {
             // 检查是否有错误或安全阻止
             if (chunk.promptFeedback?.blockReason) {
                 const blockReason: BlockedReason = chunk.promptFeedback.blockReason;
-                console.error(`[GoogleLLM Stream] Request blocked due to safety settings: ${blockReason}`);
+                console.error(`[GoogleLLM Stream] 请求因安全策略被阻止：${blockReason}`);
                 yield { error: `请求被安全策略阻止: ${blockReason}`, done: true };
                 return; // 流中断
             }
             const finishReason = chunk.candidates?.[0]?.finishReason;
             if (!chunkText && finishReason && finishReason !== FinishReason.STOP && finishReason !== FinishReason.MAX_TOKENS) {
-                console.error(`[GoogleLLM Stream] Response generation stopped unexpectedly: ${finishReason}`);
+                console.error(`[GoogleLLM Stream] 响应生成意外中止：${finishReason}`);
                 yield { error: `响应生成中止: ${finishReason}`, done: true };
                 return; // 流中断
             }
 
             // 发送文本块 (即使是空字符串也发送，以便前端知道仍在处理)
-            console.log('[GoogleLLM Stream] Yielding text chunk:', chunkText ?? ''); // 添加日志
+            console.log('[GoogleLLM Stream] 输出文本块：', chunkText ?? '');
             yield { text: chunkText ?? '' };
         }
 
         // --- 流正常结束 ---
-        console.log(`[GoogleLLM Stream] Stream finished for model ${options.model}.`);
+        console.log(`[GoogleLLM Stream] 模型 ${options.model} 的流式输出已完成。`);
         yield { done: true };
 
     } catch (error: unknown) { // 这个 catch 块捕获 API 调用和流遍历过程中的错误
-      console.error(`[GoogleLLM Stream] Error during stream for model ${options.model}:`, error);
+      console.error(`[GoogleLLM Stream] 模型 ${options.model} 流式处理时出错：`, error);
       let detailedError = '处理流式响应时发生未知错误';
       if (error instanceof Error) {
         detailedError = error.message;

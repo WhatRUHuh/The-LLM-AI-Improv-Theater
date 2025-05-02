@@ -27,7 +27,7 @@ export const LastVisitedProvider: React.FC<LastVisitedProviderProps> = ({ childr
       // 只有当路径或 internalState 实际改变时才更新，避免不必要的渲染
       // 注意：state 的比较可能不准确，如果 state 复杂且经常变化，这里可能需要优化
       if (currentInfo?.path !== path || currentInfo?.state !== state || currentInfo?.internalState !== internalState) {
-        console.log(`[LastVisitedContext] Updating ${section} nav info: path=${path}, hasState=${!!state}, hasInternalState=${!!internalState}`);
+        console.log(`[LastVisitedContext] 更新 ${section} 导航信息：路径=${path}，有状态=${!!state}，有内部状态=${!!internalState}`);
         return {
           ...prevInfo,
           [section]: { path, state, internalState }, // 存储路径、导航 state 和内部 state
@@ -41,10 +41,10 @@ export const LastVisitedProvider: React.FC<LastVisitedProviderProps> = ({ childr
   const getLastVisitedNavInfo = useCallback((section: SectionKey, defaultPath: string): NavigationInfo => {
     const lastInfo = lastVisitedNavInfo[section];
     if (lastInfo) {
-      console.log(`[LastVisitedContext] Found last visited info for ${section}: path=${lastInfo.path}, hasState=${!!lastInfo.state}, hasInternalState=${!!lastInfo.internalState}`);
+      console.log(`[LastVisitedContext] 找到 ${section} 的上次访问信息：路径=${lastInfo.path}，有状态=${!!lastInfo.state}，有内部状态=${!!lastInfo.internalState}`);
       return lastInfo; // 返回包含 path, state, internalState 的完整对象
     } else {
-      console.log(`[LastVisitedContext] No last visited info for ${section}. Using default path: ${defaultPath}`);
+      console.log(`[LastVisitedContext] 未找到 ${section} 的上次访问信息，使用默认路径：${defaultPath}`);
       return { path: defaultPath }; // 如果没有记录，返回只包含默认路径的对象
     }
   }, [lastVisitedNavInfo]);

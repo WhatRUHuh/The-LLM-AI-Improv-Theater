@@ -36,7 +36,6 @@ const getSectionKeyFromPath = (path: string): SectionKey | null => {
   return null;
 };
 
-
 // 内部组件，用于访问 Context 和处理导航逻辑
 const AppLayout: React.FC = () => {
   const navigate = useNavigate();
@@ -56,11 +55,13 @@ const AppLayout: React.FC = () => {
       // 获取完整的导航信息，包括 internalState
       const { path: targetPath, internalState: targetInternalState } = getLastVisitedNavInfo(sectionKey, defaultPath);
       // 在导航前再加一个明确的日志
-      console.log(`[App.tsx] Final navigation decision for ${sectionKey}: Navigating to ${targetPath} ${targetInternalState ? 'with internal state' : 'without internal state'} (Default was ${defaultPath})`);
+      console.log(
+        `[App.tsx] 最终导航决策：版块 ${sectionKey} -> 导航到 ${targetPath}${targetInternalState ? '（包含内部状态）' : '（不包含内部状态）'}（默认路径：${defaultPath}）`
+      );
       // 导航时将保存的 internalState 作为新的 navigation state 传递
       navigate(targetPath, { state: targetInternalState });
     } else {
-      console.log(`[App.tsx] No sectionKey found for ${defaultPath}. Navigating directly.`);
+      console.log(`[App.tsx] 未找到版块键对应路径 ${defaultPath}，直接导航。`);
       navigate(defaultPath); // 如果没有匹配的版块，直接跳默认路径
     }
   };
@@ -73,7 +74,6 @@ const AppLayout: React.FC = () => {
     switch (sectionKey) {
       case 'scripts': return ['/scripts'];
       case 'characters': return ['/characters'];
-      // 更新 case 以匹配新的 key
       case 'singleUserSingleAISetup': return ['/chat-mode-selection']; // 菜单选中项仍对应模式选择
       case 'singleUserSingleAIInterface': return ['/chat-mode-selection']; // 聊天界面也让模式选择菜单高亮
       case 'ai-config': return ['/ai-config'];
@@ -83,11 +83,22 @@ const AppLayout: React.FC = () => {
     }
   };
 
-
   return (
     <Layout style={{ height: '100vh', overflow: 'hidden' }}> {/* 1. 固定外层高度，禁止整体滚动 */}
       <Sider width={200} style={{ background: colorBgContainer, overflow: 'auto' }}> {/* 2. Sider 背景色 & 允许自身滚动 (以防万一) */}
-        <div style={{ height: 32, margin: 16, background: 'rgba(0, 0, 0, 0.2)', borderRadius: borderRadiusLG, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 'bold' }}>
+        <div
+          style={{
+            height: 32,
+            margin: 16,
+            background: 'rgba(0, 0, 0, 0.2)',
+            borderRadius: borderRadiusLG,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: '#fff',
+            fontWeight: 'bold'
+          }}
+        >
           剧场 Logo
         </div>
         <Menu
@@ -100,7 +111,6 @@ const AppLayout: React.FC = () => {
       </Sider>
       <Layout> {/* 移除 paddingLeft，变成简单容器 */}
         <Content> {/* 移除所有样式，变成简单容器 */}
-          {/* 5. 内部 div 不再需要特殊样式 */}
           <div>
             <AppRouter />
           </div>

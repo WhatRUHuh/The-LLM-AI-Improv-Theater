@@ -85,7 +85,7 @@ export abstract class BaseLLM {
    */
   setApiKey(apiKey: string | null): void {
     this.apiKey = apiKey;
-    console.log(`API Key set for provider: ${this.providerId}`);
+    console.log(`已为服务商设置 API Key: ${this.providerId}`);
   }
 
   /**

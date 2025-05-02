@@ -77,7 +77,7 @@ export class ProxyManager {
         await this.clearProxy()
       }
     } catch (error) {
-      console.error('Failed to configure proxy:', error)
+      console.error('配置代理失败：', error)
       throw error
     }
   }
@@ -107,8 +107,8 @@ export class ProxyManager {
           currentProxy = result as { proxyUrl: string };
         }
       } catch (proxyError) {
-        console.error('Error getting system proxy (registry-js may have failed):', proxyError);
-        console.log('Falling back to direct connection due to system proxy detection failure');
+        console.error('获取系统代理时出错（registry-js 可能失败）：', proxyError);
+        console.log('由于检测系统代理失败，回退到直连');
         // 如果获取系统代理失败，我们将回退到直接连接
         await this.clearProxy();
         return;
@@ -125,9 +125,8 @@ export class ProxyManager {
       this.proxyAgent = new GeneralProxyAgent();
       this.setGlobalProxy();
     } catch (error) {
-      console.error('Failed to set system proxy:', error);
-      // 不要抛出错误，而是回退到直接连接
-      console.log('Falling back to direct connection due to error');
+      console.error('设置系统代理失败：', error);
+      console.log('由于出错，回退到直连');
       await this.clearProxy();
     }
   }
@@ -144,9 +143,8 @@ export class ProxyManager {
         this.setGlobalProxy()
       }
     } catch (error) {
-      console.error('Failed to set custom proxy:', error)
-      // 不要抛出错误，而是回退到直接连接
-      console.log('Falling back to direct connection due to error')
+      console.error('设置自定义代理失败：', error)
+      console.log('由于出错，回退到直连')
       await this.clearProxy()
     }
   }
@@ -195,19 +193,19 @@ export class ProxyManager {
       try {
         const [protocol, address] = proxyUrl.split('://')
         if (!address) {
-          console.error('Invalid proxy URL format:', proxyUrl)
+          console.error('代理 URL 格式无效：', proxyUrl)
           return
         }
 
         const [host, portStr] = address.split(':')
         if (!host || !portStr) {
-          console.error('Invalid proxy URL format (missing host or port):', proxyUrl)
+          console.error('代理 URL 格式无效（缺少主机或端口）：', proxyUrl)
           return
         }
 
         const port = parseInt(portStr)
         if (isNaN(port)) {
-          console.error('Invalid proxy port:', portStr)
+          console.error('代理端口无效：', portStr)
           return
         }
 
@@ -228,7 +226,7 @@ export class ProxyManager {
           (global as any)[Symbol.for('undici.globalDispatcher.1')] = dispatcher;
         }
       } catch (error) {
-        console.error('Error setting global proxy:', error)
+        console.error('设置全局代理时出错：', error)
       }
     }
   }

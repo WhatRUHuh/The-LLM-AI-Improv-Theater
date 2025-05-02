@@ -37,14 +37,14 @@ export class AnthropicLLM extends BaseLLM {
         };
 
         this.anthropic = new Anthropic(clientOptions);
-        console.log(`Anthropic client initialized for provider: ${this.providerId}`);
+        console.log(`Anthropic 客户端已为提供商 ${this.providerId} 初始化完成`);
       } catch (error) {
-         console.error(`Failed to initialize Anthropic client for ${this.providerId}:`, error);
+         console.error(`为提供商 ${this.providerId} 初始化 Anthropic 客户端失败：`, error);
          this.anthropic = null;
       }
     } else {
       this.anthropic = null;
-      console.log(`Anthropic client destroyed for provider: ${this.providerId}`);
+      console.log(`Anthropic 客户端已为提供商 ${this.providerId} 销毁`);
     }
   }
 
@@ -66,7 +66,7 @@ export class AnthropicLLM extends BaseLLM {
 
       // 简单检查并处理消息顺序 (确保以 user 开头)
       if (messages.length > 0 && messages[0].role !== 'user') {
-         console.warn('[Anthropic] First message is not from user. Prepending placeholder.');
+         console.warn('【Anthropic】第一条消息不是来自用户，已添加占位符。');
          messages.unshift({ role: 'user', content: '(Context begins)' });
       }
 
@@ -79,11 +79,11 @@ export class AnthropicLLM extends BaseLLM {
         // stream: false, // 非流式请求
       };
 
-      console.log(`[Anthropic] Sending request to model ${options.model}`); // 简化日志
+      console.log(`正在向模型 ${options.model} 发送请求`); // 简化日志
 
       const completion: Anthropic.Messages.Message = await this.anthropic.messages.create(params);
 
-      console.log('[Anthropic] Received completion'); // 简化日志
+      console.log('已接收到完成结果'); // 简化日志
 
       // --- 解析 Anthropic 响应 ---
       let content = '';
@@ -107,7 +107,7 @@ export class AnthropicLLM extends BaseLLM {
       };
 
     } catch (error: unknown) {
-      console.error(`[Anthropic] Error during chat completion for model ${options.model}:`, error);
+      console.error(`模型 ${options.model} 聊天完成时发生错误：`, error);
       let detailedError = '与 Anthropic API 通信时发生未知错误';
       if (error instanceof Anthropic.APIError) {
         detailedError = `Anthropic API Error (${error.status}): ${error.message}`;
@@ -138,7 +138,7 @@ export class AnthropicLLM extends BaseLLM {
 
       // 简单检查并处理消息顺序 (确保以 user 开头)
       if (messages.length > 0 && messages[0].role !== 'user') {
-        console.warn('[Anthropic Stream] First message is not from user. Prepending placeholder.');
+        console.warn('【Anthropic 流】第一条消息不是来自用户，已添加占位符。');
         messages.unshift({ role: 'user', content: '(Context begins)' });
       }
 
@@ -151,7 +151,7 @@ export class AnthropicLLM extends BaseLLM {
         stream: true, // <-- 启用流式响应
       };
 
-      console.log(`[Anthropic Stream] Sending request to model ${options.model}`);
+      console.log(`正在向模型 ${options.model} 发送流式请求`);
 
       const stream = await this.anthropic.messages.stream(params);
 
@@ -174,7 +174,7 @@ export class AnthropicLLM extends BaseLLM {
             // console.log('[Anthropic Stream] Message delta. Output tokens:', event.usage.output_tokens);
             break;
           case 'message_stop': { // 添加花括号
-            console.log(`[Anthropic Stream] Stream finished for model ${options.model}.`);
+            console.log(`模型 ${options.model} 的流式请求已完成。`);
             yield { done: true }; // 移除 usage 获取
             break;
           }
@@ -190,7 +190,7 @@ export class AnthropicLLM extends BaseLLM {
       // yield { done: true };
 
     } catch (error: unknown) {
-      console.error(`[Anthropic Stream] Error during stream chat completion for model ${options.model}:`, error);
+      console.error(`模型 ${options.model} 的流式聊天完成时发生错误：`, error);
       let detailedError = '与 Anthropic API 通信时发生未知错误';
       if (error instanceof Anthropic.APIError) {
         detailedError = `Anthropic API Error (${error.status}): ${error.message}`;

@@ -88,9 +88,6 @@ export class Logger {
     if (process.platform === 'win32') {
       try {
         // 尝试将字符串转换为Buffer再转回字符串，确保UTF-8编码
-        // 使用Buffer.from(str, 'utf8')创建一个UTF-8编码的Buffer
-        // 然后使用toString('utf8')将Buffer转换回字符串
-        // 这样可以确保字符串使用UTF-8编码
         return Buffer.from(str, 'utf8').toString('utf8');
       } catch {
         return str; // 如果转换失败，返回原始字符串
