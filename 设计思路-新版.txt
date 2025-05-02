@@ -367,3 +367,9 @@ interface ChatMessage {
 
 > 本设计思路文档反映了项目的当前状态和未来规划，随着项目的发展可能会有所调整。
 > 最后更新时间：2025年5月1日
+
+
+*启动与构建**
+   - 开发模式：```npm run electron:dev```  
+   - 打包构建：```npm run electron:build```  
+npm run electron:dev:clean
