@@ -431,6 +431,29 @@ const SingleUserMultiAIInterfacePage: FC = () => {
              if (chunk.done) {
                  chatLogger.info(`AI (${aiChar.name}) 流式响应完成。`);
                  setAILoadingState(prev => ({ ...prev, [aiCharacterId]: false }));
+
+                 // 保存聊天记录到文件
+                 if (chatSessionId && chatConfig) {
+                     // 重新获取最新的 messages 状态来保存
+                     setMessages(currentMessages => {
+                         const snapshotToSave: MultiAIChatPageStateSnapshot = {
+                             chatConfig,
+                             messages: currentMessages,
+                             inputValue,
+                             systemPrompts,
+                             chatSessionId,
+                             isStreamingEnabled,
+                             selectedTargetAIIds,
+                             aiResponseMode,
+                             nextSequentialAIIndex
+                         };
+                         window.electronAPI.saveChatSession(chatSessionId, snapshotToSave)
+                           .then(() => chatLogger.info(`AI (${aiChar.name}) 回复后聊天记录已保存`))
+                           .catch(err => message.error(`保存聊天记录失败: ${err}`));
+                         return currentMessages; // 返回当前状态，不修改
+                     });
+                 }
+
                  if (aiResponseMode === 'sequential') {
                     setMessages(currentMsgState => {
                          // Use the ref here as well
@@ -448,7 +471,19 @@ const SingleUserMultiAIInterfacePage: FC = () => {
              chatLogger.info('Cleaning up unified stream listener...');
              disposeHandle.dispose();
          };
-     }, [initializationError, aiCharacters, aiResponseMode]); // Removed triggerNextSequentialAI from deps, using ref
+     }, [
+         initializationError,
+         aiCharacters,
+         aiResponseMode,
+         // 添加缺失的依赖项
+         chatConfig,
+         chatSessionId,
+         inputValue,
+         isStreamingEnabled,
+         nextSequentialAIIndex,
+         selectedTargetAIIds,
+         systemPrompts
+     ]); // 添加所有依赖项
 
 
     // --- Handle User Message Sending ---
@@ -472,6 +507,24 @@ const SingleUserMultiAIInterfacePage: FC = () => {
         const updatedMessages = [...messages, userMessage];
         setMessages(updatedMessages);
         setInputValue('');
+
+        // 保存聊天记录到文件
+        if (chatSessionId && chatConfig) {
+            const snapshotToSave: MultiAIChatPageStateSnapshot = {
+                chatConfig,
+                messages: updatedMessages,
+                inputValue: '',
+                systemPrompts,
+                chatSessionId,
+                isStreamingEnabled,
+                selectedTargetAIIds,
+                aiResponseMode,
+                nextSequentialAIIndex
+            };
+            window.electronAPI.saveChatSession(chatSessionId, snapshotToSave)
+                .then(() => chatLogger.info('用户发送消息后聊天记录已保存'))
+                .catch(err => message.error(`保存聊天记录失败: ${err}`));
+        }
 
         // Trigger AI responses
         const targetAIs = selectedTargetAIIds

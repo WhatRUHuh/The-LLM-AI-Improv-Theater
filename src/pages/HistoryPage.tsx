@@ -31,6 +31,7 @@ const parseTimestampFromFilename = (fileName: string): number => {
 const formatModeName = (mode: ChatMode | string): string => {
     switch (mode) {
         case 'singleUserSingleAI': return '单人单 AI';
+        case 'singleUserMultiAI': return '单人多 AI';
         // 在这里添加其他模式的显示名称
         default: return mode; // 未知模式直接显示原始值
     }
@@ -143,9 +144,10 @@ const HistoryPage: React.FC = () => {
         return;
     }
     // 根据模式跳转到对应的聊天界面
-    // 现在只有一种模式，直接跳转
     if (item.mode === 'singleUserSingleAI') {
         navigate('/single-user-single-ai-interface', { state: item.snapshot });
+    } else if (item.mode === 'singleUserMultiAI') {
+        navigate('/single-user-multi-ai-interface', { state: item.snapshot });
     } else {
         message.warning(`暂不支持查看 "${formatModeName(item.mode)}" 模式的历史记录。`);
     }
