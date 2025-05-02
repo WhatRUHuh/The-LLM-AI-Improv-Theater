@@ -562,8 +562,10 @@ export function registerLLMServiceHandlers(getMainWindow: () => BrowserWindow | 
    });
 
    // --- 新增：处理流式聊天生成请求 ---
-   ipcMain.handle('llm-generate-chat-stream', async (event, providerId: string, options: LLMChatOptions): Promise<{ success: boolean; error?: string }> => {
-     console.log(`[IPC 主进程] 收到 llm-generate-chat-stream 请求，服务商: ${providerId}`);
+   // --- 新增：处理流式聊天生成请求 (加入 sourceId/characterId) ---
+   // IMPORTANT: The third argument `characterId` is ADDED here. Frontend needs to pass it!
+   ipcMain.handle('llm-generate-chat-stream', async (event, providerId: string, options: LLMChatOptions, characterId?: string): Promise<{ success: boolean; error?: string }> => {
+     console.log(`[IPC 主进程] 收到 llm-generate-chat-stream 请求，服务商: ${providerId}, 角色ID: ${characterId ?? '未提供'}`);
      const mainWindow = getMainWindow(); // 获取主窗口实例
      if (!mainWindow) {
        console.error('[IPC 主进程] 主窗口不可用，无法发送流式数据。');
@@ -598,12 +600,14 @@ export function registerLLMServiceHandlers(getMainWindow: () => BrowserWindow | 
             // 可能需要通知 LLM 服务停止生成 (如果支持)
             break;
          }
-         webContents.send('llm-stream-chunk', chunk);
+         // 打包 chunk 和 sourceId (characterId) 一起发送
+         webContents.send('llm-stream-chunk', { chunk, sourceId: characterId });
        }
        console.log(`[IPC 主进程] ${providerId} 的流式输出已完成。`);
        // 发送完成信号 (即使 stream 实现内部已发送 done:true，这里再发一次确保)
        if (!webContents.isDestroyed()) {
-           webContents.send('llm-stream-chunk', { done: true });
+           // 发送完成信号，也带上 sourceId，方便前端识别是哪个流结束了
+           webContents.send('llm-stream-chunk', { chunk: { done: true }, sourceId: characterId });
        }
        return { success: true }; // 表示启动流式请求成功
 
@@ -612,7 +616,8 @@ export function registerLLMServiceHandlers(getMainWindow: () => BrowserWindow | 
        const message = error instanceof Error ? error.message : '调用流式聊天生成时发生未知错误';
        // 发送错误信号给前端
        if (!webContents.isDestroyed()) {
-           webContents.send('llm-stream-chunk', { error: message, done: true });
+           // 发送错误信号，也带上 sourceId
+           webContents.send('llm-stream-chunk', { chunk: { error: message, done: true }, sourceId: characterId });
        }
        return { success: false, error: message }; // 表示启动流式请求失败
      }

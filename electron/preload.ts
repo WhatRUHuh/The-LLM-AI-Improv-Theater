@@ -62,8 +62,9 @@ contextBridge.exposeInMainWorld('electronAPI', { // 使用不同的键名，避�
    llmGenerateChat: (providerId: string, options: LLMChatOptions): Promise<{ success: boolean; data?: LLMResponse; error?: string }> =>
      ipcRenderer.invoke('llm-generate-chat', providerId, options),
   // 新增：调用流式聊天生成 API (只负责启动，实际数据通过 onLLMStreamChunk 接收)
-  llmGenerateChatStream: (providerId: string, options: LLMChatOptions): Promise<{ success: boolean; error?: string }> =>
-    ipcRenderer.invoke('llm-generate-chat-stream', providerId, options),
+  // 修改：添加 characterId 参数
+  llmGenerateChatStream: (providerId: string, options: LLMChatOptions, characterId?: string): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke('llm-generate-chat-stream', providerId, options, characterId),
 // 新增：获取和保存自定义模型列表
   llmGetCustomModels: (providerId: string): Promise<{ success: boolean; data?: string[]; error?: string }> =>
     ipcRenderer.invoke('llm-get-custom-models', providerId),
@@ -86,11 +87,15 @@ contextBridge.exposeInMainWorld('electronAPI', { // 使用不同的键名，避�
   // 定义流式数据块的预期结构 (可以根据实际情况调整)
   // type LLMStreamChunk = { text?: string; error?: string; done?: boolean; usage?: object; metrics?: object; search?: object; mcpToolResponse?: object; generateImage?: object };
   // 暂时使用 unknown，在接收端进行类型检查
-  onLLMStreamChunk: (listener: (chunkData: unknown) => void): { dispose: () => void } => {
+  // 修改：回调函数接收包含 chunk 和 sourceId 的对象
+  onLLMStreamChunk: (listener: (data: { chunk: unknown; sourceId?: string }) => void): { dispose: () => void } => {
     const channel = 'llm-stream-chunk';
-    // 使用一个包装函数来确保类型安全和处理 event 参数
-    const internalListener = (_event: Electron.IpcRendererEvent, chunkData: unknown) => {
-        listener(chunkData);
+    // 监听器现在接收整个 data 对象
+    const internalListener = (_event: Electron.IpcRendererEvent, data: { chunk: unknown; sourceId?: string }) => {
+      // 可以添加日志记录接收到的数据结构
+      // logger.debug(`[Preload] Received stream chunk data on channel ${channel}:`, data);
+      // 直接将整个 data 对象传递给前端的回调函数
+      listener(data);
     };
     ipcRenderer.on(channel, internalListener);
     // 返回一个包含 dispose 方法的对象，用于取消监听

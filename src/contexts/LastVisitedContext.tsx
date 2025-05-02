@@ -1,12 +1,9 @@
 import React, { useState, ReactNode, useCallback } from 'react';
 // 从新文件导入 Context 定义和类型 (移除未使用的 LastVisitedContextType)
-import { LastVisitedContext, NavigationInfo } from './lastVisitedContextDefinition';
-
-// 定义每个版块的类型 (可以保留在这里，或者也移到 definition 文件)
-type SectionKey = 'singleUserSingleAISetup' | 'singleUserSingleAIInterface' | 'scripts' | 'characters' | 'ai-config' | 'history' | 'settings';
-
-// 定义 Context 存储的数据结构：{ 版块Key: 最后访问的导航信息 }
-type LastVisitedNavInfo = Partial<Record<SectionKey, NavigationInfo>>;
+import { LastVisitedContext, NavigationInfo, SectionKey, LastVisitedContextType } from './lastVisitedContextDefinition'; // <-- 导入 SectionKey 和 LastVisitedContextType
+ 
+ // 定义 Context 存储的数据结构：{ 版块Key: 最后访问的导航信息 }
+ type LastVisitedNavInfo = Partial<Record<SectionKey, NavigationInfo>>; // <-- 使用导入的 SectionKey
 
 // ContextType 和 Context 本身已从 definition 文件导入
 // interface LastVisitedContextType { ... }
@@ -49,10 +46,12 @@ export const LastVisitedProvider: React.FC<LastVisitedProviderProps> = ({ childr
     }
   }, [lastVisitedNavInfo]);
 
-  const value = { lastVisitedNavInfo, updateLastVisitedNavInfo, getLastVisitedNavInfo };
-
-  return (
-    <LastVisitedContext.Provider value={value}>
+  // 明确 value 的类型符合导入的 LastVisitedContextType
+  const value: LastVisitedContextType = { lastVisitedNavInfo, updateLastVisitedNavInfo, getLastVisitedNavInfo };
+ 
+   return (
+     // Provider 使用导入的 Context
+     <LastVisitedContext.Provider value={value}>
       {children}
     </LastVisitedContext.Provider>
   );

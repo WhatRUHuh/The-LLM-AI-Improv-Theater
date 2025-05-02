@@ -1,7 +1,7 @@
 import { createContext } from 'react';
 
 // 定义每个版块的类型 (保持与 Provider 文件一致)
-type SectionKey = 'singleUserSingleAISetup' | 'singleUserSingleAIInterface' | 'scripts' | 'characters' | 'ai-config' | 'history' | 'settings';
+export type SectionKey = 'singleUserSingleAISetup' | 'singleUserSingleAIInterface' | 'singleUserMultiAISetup' | 'singleUserMultiAIInterface' | 'scripts' | 'characters' | 'ai-config' | 'history' | 'settings'; // <-- Add export
 
 // 定义存储的导航信息结构
 export interface NavigationInfo {

@@ -13,8 +13,10 @@ const ChatModeSelectionPage: React.FC = () => {
     logger.info(`选择聊天模式: ${mode}`);
     if (mode === 'singleUserSingleAI') {
       navigate('/single-user-single-ai-setup', { state: { mode } });
+    } else if (mode === 'singleUserMultiAI') {
+      navigate('/single-user-multi-ai-setup', { state: { mode } });
     } else {
-      message.warning(`模式 "${mode}" 的设置页面尚未实现！`);
+       message.warning(`模式 "${mode}" 的设置页面尚未实现！`);
     }
   };
 

@@ -5,6 +5,9 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import ChatModeSelectionPage from './pages/ChatModeSelectionPage';
 import SingleUserSingleAISetupPage from './pages/SingleUserSingleAISetupPage'; // <-- 改导入名
 import SingleUserSingleAIInterfacePage from './pages/SingleUserSingleAIInterfacePage'; // <-- 改导入名
+// 导入单人多 AI 页面
+import SingleUserMultiAISetupPage from './pages/SingleUserMultiAISetupPage';
+import SingleUserMultiAIInterfacePage from './pages/SingleUserMultiAIInterfacePage';
 import ScriptManagementPage from './pages/ScriptManagementPage';
 import CharacterManagementPage from './pages/CharacterManagementPage';
 import CharacterEditorPage from './pages/CharacterEditorPage';
@@ -32,6 +35,9 @@ const AppRouter: React.FC = () => {
       <Route path="/chat-mode-selection" element={<ChatModeSelectionPage />} />
       <Route path="/single-user-single-ai-setup" element={<SingleUserSingleAISetupPage />} /> {/* <-- 修改路径 */}
       <Route path="/single-user-single-ai-interface" element={<SingleUserSingleAIInterfacePage />} /> {/* <-- 修改路径 */}
+      {/* 单人多 AI 路由 */}
+      <Route path="/single-user-multi-ai-setup" element={<SingleUserMultiAISetupPage />} />
+      <Route path="/single-user-multi-ai-interface" element={<SingleUserMultiAIInterfacePage />} />
       {/* 剧本管理路由 */}
       <Route path="/scripts" element={<ScriptManagementPage />} />
       <Route path="/scripts/add" element={<ScriptEditorPage />} /> {/* 添加剧本路由 */}
