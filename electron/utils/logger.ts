@@ -105,6 +105,9 @@ export class Logger {
     if (this.level <= LogLevel.DEBUG) {
       const formattedMessage = this.formatMessage('调试', message, ...args);
       console.log(this.ensureUtf8(formattedMessage));
+
+      // 如果在渲染进程中，通过 IPC 发送日志到主进程
+      this.sendLogToMain('调试', message, ...args);
     }
   }
 
@@ -117,6 +120,9 @@ export class Logger {
     if (this.level <= LogLevel.INFO) {
       const formattedMessage = this.formatMessage('信息', message, ...args);
       console.log(this.ensureUtf8(formattedMessage));
+
+      // 如果在渲染进程中，通过 IPC 发送日志到主进程
+      this.sendLogToMain('信息', message, ...args);
     }
   }
 
@@ -129,6 +135,9 @@ export class Logger {
     if (this.level <= LogLevel.WARN) {
       const formattedMessage = this.formatMessage('警告', message, ...args);
       console.warn(this.ensureUtf8(formattedMessage));
+
+      // 如果在渲染进程中，通过 IPC 发送日志到主进程
+      this.sendLogToMain('警告', message, ...args);
     }
   }
 
@@ -141,6 +150,39 @@ export class Logger {
     if (this.level <= LogLevel.ERROR) {
       const formattedMessage = this.formatMessage('错误', message, ...args);
       console.error(this.ensureUtf8(formattedMessage));
+
+      // 如果在渲染进程中，通过 IPC 发送日志到主进程
+      this.sendLogToMain('错误', message, ...args);
+    }
+  }
+
+  /**
+   * 通过 IPC 发送日志到主进程
+   * @param level 日志级别
+   * @param message 日志消息
+   * @param args 额外参数
+   */
+  private sendLogToMain(level: string, message: string, ...args: unknown[]): void {
+    // 检查是否在渲染进程中
+    if (typeof window !== 'undefined') {
+      try {
+        // 使用 unknown 类型代替 any，然后进行类型检查
+        const win = window as unknown;
+        // 使用类型守卫检查 electronAPI 属性
+        if (
+          win &&
+          typeof win === 'object' &&
+          'electronAPI' in win &&
+          win.electronAPI &&
+          typeof win.electronAPI === 'object' &&
+          'logToFile' in win.electronAPI &&
+          typeof win.electronAPI.logToFile === 'function'
+        ) {
+          win.electronAPI.logToFile(level, message, ...args);
+        }
+      } catch {
+        // 忽略错误，避免循环调用
+      }
     }
   }
 }

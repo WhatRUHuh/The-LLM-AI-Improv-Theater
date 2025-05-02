@@ -107,6 +107,11 @@ contextBridge.exposeInMainWorld('electronAPI', { // 使用不同的键名，避�
     };
   },
 
+  // 日志 API
+  logToFile: (level: string, message: string, ...args: unknown[]): void => {
+    ipcRenderer.send('log-message', level, message, ...args);
+  },
+
   // 你可以在这里暴露其他需要的 API。
 });
 

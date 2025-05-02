@@ -76,6 +76,9 @@ declare global {
       // 修改：listener 接收包含 chunk 和 sourceId 的对象
       onLLMStreamChunk: (listener: (data: { chunk: unknown; sourceId?: string }) => void)
         => { dispose: () => void };
+
+      // 日志 API
+      logToFile: (level: string, message: string, ...args: unknown[]) => void;
     };
   }
 }

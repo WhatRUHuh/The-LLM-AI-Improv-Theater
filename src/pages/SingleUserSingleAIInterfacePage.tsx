@@ -183,7 +183,7 @@ prompt += `\n与你对话的是由人类用户扮演的角色: **${userChar.name
         };
         // 使用 location.pathname 获取当前路径
         updateLastVisitedNavInfo('singleUserSingleAIInterface', location.pathname, undefined, currentStateSnapshot); // <-- 使用更明确的 key
- 
+
     }
   }, [messages, inputValue, chatConfig, systemPrompt, chatSessionId, isStreamingEnabled, updateLastVisitedNavInfo, location.pathname]);
 
@@ -197,12 +197,18 @@ prompt += `\n与你对话的是由人类用户扮演的角色: **${userChar.name
   // --- 流式数据处理 Effect ---
   useEffect(() => {
     // 定义处理函数
-    const handleStreamChunk = (chunkData: unknown) => {
- 
-      // 类型守卫，确保 chunkData 是对象且符合 StreamChunk 结构
-      if (typeof chunkData !== 'object' || chunkData === null) return;
+    const handleStreamChunk = (data: unknown) => {
+      // 类型守卫，确保 data 是对象且包含 chunk 属性
+      if (typeof data !== 'object' || data === null || !('chunk' in data)) {
+        logger.error('收到无效的流式数据结构:', data);
+        return;
+      }
 
-      const chunk = chunkData as StreamChunk; // 类型断言 (或更安全的检查)
+      // 提取 chunk 对象
+      const { chunk } = data as { chunk: StreamChunk, sourceId?: string };
+
+      // 添加调试日志
+      logger.info('收到流式数据块:', chunk);
 
       if (chunk.text) {
         setMessages(prevMessages => {

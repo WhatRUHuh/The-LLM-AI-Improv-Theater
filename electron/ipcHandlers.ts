@@ -679,13 +679,23 @@ export function registerProxyHandlers(): void {
       };
 
       if (incomingConfig.mode === 'custom') {
-        if (incomingConfig.url) {
+        // 首先检查 customProxyUrl (前端传递的字段)
+        if (incomingConfig.customProxyUrl) {
+          // 使用传入的 customProxyUrl 作为活动 URL 和新的持久化自定义 URL
+          configToSave.url = incomingConfig.customProxyUrl;
+          configToSave.customProxyUrl = incomingConfig.customProxyUrl;
+          configForManager.url = incomingConfig.customProxyUrl; // 确保 Manager 获得 URL
+          console.log('[IPC 主进程] 使用前端传递的 customProxyUrl:', incomingConfig.customProxyUrl);
+        }
+        // 如果没有 customProxyUrl，则检查 url (兼容旧代码)
+        else if (incomingConfig.url) {
           // 使用传入的 URL 作为活动 URL 和新的持久化自定义 URL
           configToSave.url = incomingConfig.url;
           configToSave.customProxyUrl = incomingConfig.url;
           configForManager.url = incomingConfig.url; // 确保 Manager 获得 URL
+          console.log('[IPC 主进程] 使用前端传递的 url:', incomingConfig.url);
         } else {
-          // 如果自定义模式未提供 URL，则尝试使用已保存的
+          // 如果自定义模式未提供任何 URL，则尝试使用已保存的
           console.warn('[IPC 主进程] 选择了自定义代理模式但未提供 URL，尝试使用已保存的 customProxyUrl。');
           configToSave.url = savedConfig.customProxyUrl; // 使用已保存的作为活动 URL
           configForManager.url = savedConfig.customProxyUrl; // 告知 Manager 使用已保存的

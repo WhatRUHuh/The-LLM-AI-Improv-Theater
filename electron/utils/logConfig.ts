@@ -18,7 +18,7 @@ export const defaultLogConfig: LogConfig = {
   },
   showTimestamp: true,
   colorfulConsole: true,
-  logToFile: false,
+  logToFile: true, // 启用日志文件功能
 };
 
 /**

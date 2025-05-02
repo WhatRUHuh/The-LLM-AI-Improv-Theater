@@ -14,10 +14,10 @@ export async function setupGlobalEncoding(): Promise<void> {
   process.env.LC_CTYPE = 'zh_CN.UTF-8';
 
   // 设置控制台输出编码
-  if (process.stdout.isTTY) {
+  if (process.stdout && process.stdout.isTTY) {
     process.stdout.setDefaultEncoding('utf8');
   }
-  if (process.stderr.isTTY) {
+  if (process.stderr && process.stderr.isTTY) {
     process.stderr.setDefaultEncoding('utf8');
   }
 

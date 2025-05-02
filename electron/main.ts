@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, shell } from 'electron'; // 导入需要的模块
+import { app, BrowserWindow, Menu, shell, ipcMain } from 'electron'; // 导入需要的模块
 import path from 'node:path';
 import fs from 'node:fs'; // 导入 fs 模块
 import { fileURLToPath } from 'node:url'; // 导入 fileURLToPath
@@ -8,6 +8,7 @@ import { proxyManager } from './ProxyManager';
 import { readStore } from './storage/jsonStore';
 import { mainLogger as logger } from './utils/logger'; // 导入日志工具
 import { setupGlobalEncoding } from './utils/encoding'; // 导入编码工具
+import { initLogger, writeLog, closeLogger } from './utils/fileLogger'; // 导入文件日志工具
 
 // 设置全局编码为UTF-8 (异步函数，但我们不需要等待它完成)
 // 在Windows平台上，尝试设置控制台代码页为UTF-8
@@ -254,15 +255,52 @@ app.on('window-all-closed', () => {
   }
 });
 
+app.on('before-quit', () => {
+  logger.info('应用程序即将退出，正在执行清理操作...');
+  // 关闭日志文件
+  closeLogger();
+});
+
 app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) {
     createWindow();
   }
 });
 
+// 注册日志 IPC 通道
+function registerLogIpcHandlers() {
+  // 处理来自渲染进程的日志消息
+  ipcMain.on('log-message', (_event, level: string, message: string, ...args: unknown[]) => {
+    // 将日志写入文件
+    const formattedArgs = args.map(arg => {
+      if (typeof arg === 'object') {
+        try {
+          return JSON.stringify(arg);
+        } catch {
+          return String(arg);
+        }
+      }
+      return String(arg);
+    });
+
+    const timestamp = `[${new Date().toLocaleString('zh-CN')}]`;
+    const logMessage = `${timestamp} [${level}] ${message} ${formattedArgs.join(' ')}`.trim();
+
+    // 写入日志文件
+    writeLog(logMessage);
+  });
+}
+
 app.whenReady().then(async () => {
   logger.info('应用已就绪.');
   try {
+    // 初始化日志系统
+    initLogger();
+    logger.info('日志系统已初始化');
+
+    // 注册日志 IPC 通道
+    registerLogIpcHandlers();
+
     // 初始化 LLM 服务和加载 API Keys
     await llmServiceManager.initialize();
     await loadAndSetApiKeys();
