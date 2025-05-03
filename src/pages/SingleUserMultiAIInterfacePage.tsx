@@ -655,7 +655,7 @@ const SingleUserMultiAIInterfacePage: FC = () => {
                                  scheduleTriggerLock.current = false; // 在执行前释放调度锁
                                  chatLogger.info(`Executing scheduled trigger check after ${aiChar?.name} stream error.`);
                                  triggerNextSequentialAIRef.current?.(prevMsgs);
-                             }, 0);
+                             }, 1000); // 添加1秒延迟，确保AI有足够的时间完成回复
                          } else {
                             chatLogger.warn(`Skipping duplicate schedule attempt after ${aiChar?.name} stream error.`);
                          }
@@ -708,7 +708,7 @@ const SingleUserMultiAIInterfacePage: FC = () => {
                                  scheduleTriggerLock.current = false; // 在执行前释放调度锁
                                  chatLogger.info(`Executing scheduled trigger check after ${aiChar?.name} stream done.`);
                                  triggerNextSequentialAIRef.current?.(prevMsgs);
-                             }, 0);
+                             }, 1000); // 添加1秒延迟，确保AI有足够的时间完成回复
                          } else {
                              chatLogger.warn(`Skipping duplicate schedule attempt after ${aiChar?.name} stream done.`);
                          }

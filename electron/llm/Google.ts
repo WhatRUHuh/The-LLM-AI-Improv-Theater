@@ -349,6 +349,10 @@ export class GoogleLLM extends BaseLLM {
 
         // --- 流正常结束 ---
         console.log(`[GoogleLLM Stream] 模型 ${options.model} 的流式输出正常结束。`);
+
+        // 添加一个小延迟，确保所有数据都已经被发送
+        await new Promise(resolve => setTimeout(resolve, 1000));
+
         yield { done: true }; // 发送完成信号
 
     } catch (error: unknown) { // 这个 catch 块捕获 API 调用和流遍历过程中的错误
