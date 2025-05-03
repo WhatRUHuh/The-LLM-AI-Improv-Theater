@@ -24,10 +24,16 @@ type AIResponseMode = 'simultaneous' | 'sequential'; // 同时或顺序回复模
 // 定义各 AI 的加载状态
 type AILoadingState = Record<string, boolean>;
 
+// 定义分割的系统提示词结构
+interface SplitSystemPrompt {
+    prePrompt: string;
+    postPrompt: string;
+}
+
 // 扩展 ChatPageStateSnapshot 用于多 AI 相关
 interface MultiAIChatPageStateSnapshot extends Omit<ChatPageStateSnapshot, 'chatConfig' | 'systemPrompt'> {
     chatConfig: ChatConfig & { mode: 'singleUserMultiAI' };
-    systemPrompts: Record<string, string>; // 存储所有系统提示词
+    systemPrompts: Record<string, SplitSystemPrompt>; // 存储所有系统提示词（前置和后置）
     selectedTargetAIIds: string[];
     aiResponseMode: AIResponseMode;
     nextSequentialAIIndex?: number;
@@ -43,7 +49,7 @@ const SingleUserMultiAIInterfacePage: FC = () => {
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [inputValue, setInputValue] = useState<string>('');
     const [aiLoadingState, setAILoadingState] = useState<AILoadingState>({});
-    const [systemPrompts, setSystemPrompts] = useState<Record<string, string>>({});
+    const [systemPrompts, setSystemPrompts] = useState<Record<string, SplitSystemPrompt>>({});
     const [chatSessionId, setChatSessionId] = useState<string>('');
     const [isStreamingEnabled, setIsStreamingEnabled] = useState<boolean>(true);
     const [selectedTargetAIIds, setSelectedTargetAIIds] = useState<string[]>([]);
@@ -74,7 +80,7 @@ const SingleUserMultiAIInterfacePage: FC = () => {
         let configToSet: (ChatConfig & { mode: 'singleUserMultiAI' }) | null = null;
         let messagesToSet: ChatMessage[] = [];
         let inputToSet = '';
-        let promptsToSet: Record<string, string> = {};
+        let promptsToSet: Record<string, SplitSystemPrompt> = {};
         let sessionIdToSet = '';
         let streamingToSet = true;
         let targetsToSet: string[] = [];
@@ -153,7 +159,7 @@ const SingleUserMultiAIInterfacePage: FC = () => {
         }
 
          chatLogger.info('Multi AI: Generating prompts and session ID...');
-         const newPrompts: Record<string, string> = {}; // 存储新生成的提示词
+         const newPrompts: Record<string, SplitSystemPrompt> = {}; // 存储新生成的提示词
          const currentAiChars = aiCharacters;      // 当前所有 AI 角色
          const currentUserChar = userCharacter;   // 当前用户扮演的角色
 
@@ -166,7 +172,7 @@ const SingleUserMultiAIInterfacePage: FC = () => {
          // --- 1. 生成剧本设定部分 ---
          // 确保这里的 key 都是 Script 类型中真实存在的
          const scriptFields: (keyof ChatConfig['script'])[] = [
-             'title', 'scene', 'genre', 'setting', 'synopsis', 'mood', 'themes', 'tags' 
+             'title', 'scene', 'genre', 'setting', 'synopsis', 'mood', 'themes', 'tags'
          ];
          const scriptSettings = scriptFields
              .map(key => {
@@ -240,23 +246,24 @@ const SingleUserMultiAIInterfacePage: FC = () => {
             // --- 3b. 生成对【当前 AI 自己】的描述，包含秘密 ---
             const ownCharacterDescription = formatCharacterDetails(aiChar, false); // hideSecrets = false
 
-            // --- 3c. 组装最终提示词 ---
-            const prompt = `你现在正在参与一个 AI 即兴剧场。\n\n` +
+            // --- 3c. 组装前置提示词（角色设定、剧本信息等） ---
+            const prePrompt = `你现在正在参与一个 AI 即兴剧场。\n\n` +
                            `=== 剧本设定 ===\n${scriptSettings || '无'}\n\n` + // 如果没设定则显示“无”
                            `=== 出场人物设定 (他人信息已隐藏秘密) ===\n${otherCharacterDescriptions || '无其他角色'}\n\n` +
                            `--- 你的重要任务 ---\n` +
                            `你的任务是扮演以下角色，这是你的【完整】设定（包括你的秘密）：\n` +
-                           `**${aiChar.name}**:\n${ownCharacterDescription}\n\n` +
-                           `--- 表演规则 ---\n` +
-                           `1. 对话历史中的发言会以 "角色名: 内容" 的格式呈现。\n` +
-                           `2. 你必须只输出你扮演的角色 **(${aiChar.name})** 的对话内容。\n` +
-                           `3. 输出内容**不要**包含角色名和冒号 (例如，不要输出 "${aiChar.name}: 你好")。\n` +
-                           `4. **不要**进行任何与角色扮演无关的评论或解释。\n` +
-                           `5. 再次强调，你是 **${aiChar.name}**！请全身心投入角色！\n\n` +
+                           `**${aiChar.name}**:\n${ownCharacterDescription}`;
+
+            // --- 3d. 组装后置提示词（输出格式要求等，移除了"对话历史中的发言会以角色名: 内容的格式呈现"） ---
+            const postPrompt = `--- 表演规则 ---\n` +
+                           `1. 你必须只输出你扮演的角色 **(${aiChar.name})** 的对话内容。\n` +
+                           `2. 输出内容**不要**包含角色名和冒号 (例如，不要输出 "${aiChar.name}: 你好")。\n` +
+                           `3. **不要**进行任何与角色扮演无关的评论或解释。\n` +
+                           `4. 再次强调，你是 **${aiChar.name}**！请全身心投入角色！\n\n` +
                            `现在，请根据对话历史，开始你的表演：`;
 
-             newPrompts[aiChar.id] = prompt; // 存储生成的提示词
-             chatLogger.info(`Generated NEW detailed & privacy-aware system prompt for ${aiChar.name}`); // 更新日志信息
+             newPrompts[aiChar.id] = { prePrompt, postPrompt }; // 存储前置和后置提示词
+             chatLogger.info(`Generated NEW split system prompts for ${aiChar.name}`); // 更新日志信息
          });
 
         if (!didCancel) {
@@ -329,9 +336,13 @@ const SingleUserMultiAIInterfacePage: FC = () => {
                 content: `${msg.characterName}: ${msg.content}` // 保留前缀用于上下文
             }));
 
+            // 组合前置和后置提示词
+            const { prePrompt, postPrompt } = systemPrompts[aiChar.id];
+            const combinedSystemPrompt = prePrompt + '\n\n' + postPrompt;
+
             const options: LLMChatOptions = {
                 model: aiConfig.model, messages: llmHistory,
-                systemPrompt: systemPrompts[aiChar.id], stream: isStreamingEnabled,
+                systemPrompt: combinedSystemPrompt, stream: isStreamingEnabled,
             };
 
             chatLogger.info(`Sending request to ${aiChar.name} (${aiConfig.providerId}/${aiConfig.model}), Stream: ${isStreamingEnabled}`);
