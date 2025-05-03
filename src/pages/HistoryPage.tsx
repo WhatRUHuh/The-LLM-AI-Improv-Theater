@@ -3,8 +3,6 @@ import React, { useState, useEffect } from 'react';
 import { List, Spin, message, Typography, Empty, Tag, Button, Popconfirm, theme } from 'antd';
 import { EyeOutlined, DeleteOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
-// 假设 ChatPageStateSnapshot 类型已经移到 types/index.ts 并导出
-// 如果没有，需要先去 SingleUserSingleAIInterfacePage.tsx 导出，或者移到 types/index.ts
 import type { ChatPageStateSnapshot } from '../types';
 import type { ChatMode } from '../types'; // <-- 修改导入路径
 import { historyLogger as logger } from '../utils/logger'; // 导入日志工具
@@ -22,7 +20,6 @@ interface HistoryItem {
 
 // 辅助函数：尝试从文件名解析时间戳
 const parseTimestampFromFilename = (fileName: string): number => {
-  // 假设文件名格式为 "*-时间戳.json"
   const match = fileName.match(/-(\d+)\.json$/);
   return match ? parseInt(match[1], 10) : 0;
 };
@@ -65,7 +62,6 @@ const HistoryPage: React.FC = () => {
           const readResult = await window.electronAPI.readStore(relativePath, null); // <-- 使用相对路径读取
           if (readResult.success && readResult.data) {
             try {
-              // 假设文件内容是 ChatPageStateSnapshot
               const snapshot = readResult.data as ChatPageStateSnapshot;
               // 基本校验，确保快照结构符合预期
               if (snapshot && snapshot.chatConfig && snapshot.chatConfig.mode && snapshot.chatConfig.script) {

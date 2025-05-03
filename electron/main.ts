@@ -44,7 +44,7 @@ const __dirname = path.dirname(__filename);
 // 注意: process.env.DIST 会在 createWindow 中根据环境设置
 process.env.VITE_PUBLIC = process.env.VITE_DEV_SERVER_URL
   ? path.join(__dirname, '../public') // 开发: ../public
-  : path.join(__dirname, '../dist');  // 生产: ../dist (先假设它和 dist-electron 同级)
+  : path.join(__dirname, '../dist');  // 生产: ../dist 
 
 // --- 全局变量 ---
 let win: BrowserWindow | null;

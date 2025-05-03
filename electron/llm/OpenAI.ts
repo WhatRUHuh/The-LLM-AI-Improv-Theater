@@ -149,7 +149,7 @@ export class OpenAILLM extends BaseLLM {
       // 准备 OpenAI API 请求参数
       const params: OpenAI.Chat.ChatCompletionCreateParams = {
         model: options.model,
-        messages: options.messages, // 假设 messages 已经是 'user' | 'assistant'
+        messages: options.messages, 
         temperature: options.temperature ?? 0.7,
         max_tokens: options.maxTokens,
         stream: true, // <-- 启用流式响应

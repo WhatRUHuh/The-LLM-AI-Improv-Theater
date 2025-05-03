@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react'; // 确�
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Input, Button, List, Spin, message, Typography, Card, Empty, Switch, Space, theme } from 'antd'; // Import theme
 import { SendOutlined, ArrowLeftOutlined } from '@ant-design/icons';
-// 导入 StreamChunk 类型 (假设已在 BaseLLM 定义并导出)
+// 导入 StreamChunk 类型
 // import type { StreamChunk } from '../../electron/llm/BaseLLM'; // <-- 需要确认 BaseLLM.ts 中 StreamChunk 的导出
 // 从公共类型文件导入所有需要的类型
 import type {

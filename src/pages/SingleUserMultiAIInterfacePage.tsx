@@ -153,30 +153,110 @@ const SingleUserMultiAIInterfacePage: FC = () => {
         }
 
          chatLogger.info('Multi AI: Generating prompts and session ID...');
-         const newPrompts: Record<string, string> = {};
-         const currentAiChars = aiCharacters;
-         const currentUserChar = userCharacter;
+         const newPrompts: Record<string, string> = {}; // 存储新生成的提示词
+         const currentAiChars = aiCharacters;      // 当前所有 AI 角色
+         const currentUserChar = userCharacter;   // 当前用户扮演的角色
 
+         // 检查角色是否存在
          if (!currentUserChar || currentAiChars.length === 0) {
               chatLogger.error("Multi AI: Cannot find user/AI characters for prompt generation.");
-              return;
+              return; // 如果缺少角色信息，则无法继续
          }
 
-         const basePrompt = `你现在正在参与一个 AI 即兴剧场。\n剧本: ${chatConfig.script.title}\n场景: ${chatConfig.script.scene || '未指定'}\n背景: ${chatConfig.script.setting || '未指定'}\n梗概: ${chatConfig.script.synopsis || '未指定'}\n氛围: ${chatConfig.script.mood || '未指定'}\n\n出场角色:\n${chatConfig.participatingCharacters.map((c: AICharacter) => `- ${c.name}${c.identity ? ` (${c.identity})` : ''} (性格: ${c.personality || '未指定'})`).join('\n')}\n\n与你对话的是由人类用户扮演的角色: **${currentUserChar.name}**。\n以下是该角色的设定:\n- 姓名: ${currentUserChar.name}\n${currentUserChar.identity ? `- 身份: ${currentUserChar.identity}\n` : ''}${currentUserChar.personality ? `- 性格: ${currentUserChar.personality}\n` : ''}${currentUserChar.background ? `- 背景: ${currentUserChar.background}\n` : ''}${currentUserChar.mannerisms ? `- 言行举止: ${currentUserChar.mannerisms}\n` : ''}${currentUserChar.voiceTone ? `- 说话音调: ${currentUserChar.voiceTone}\n` : ''}${currentUserChar.catchphrase ? `- 口头禅: ${currentUserChar.catchphrase}\n` : ''}\n`;
+         // --- 1. 生成剧本设定部分 ---
+         // 确保这里的 key 都是 Script 类型中真实存在的
+         const scriptFields: (keyof ChatConfig['script'])[] = [
+             'title', 'scene', 'genre', 'setting', 'synopsis', 'mood', 'themes', 'tags' 
+         ];
+         const scriptSettings = scriptFields
+             .map(key => {
+                 const value = chatConfig.script[key];
+                 // 对标签数组特殊处理
+                 if (key === 'tags' && Array.isArray(value) && value.length > 0) {
+                     return `标签: ${value.join(', ')}`;
+                 }
+                 // 其他字段，如果存在且非空字符串则包含
+                 if (typeof value === 'string' && value.trim()) {
+                     // 为 key 添加中文标签（这里可以映射）
+                     const labelMap: Record<string, string> = {
+                         title: '剧本名字', scene: '场景描述', genre: '类型/题材', setting: '时代/背景设定',
+                         synopsis: '剧情梗概', mood: '氛围/基调', theme: '主题'
+                     };
+                     return `${labelMap[key] || key}: ${value.trim()}`;
+                 }
+                 return null; // 忽略空字段或非字符串/标签数组字段
+             })
+             .filter(Boolean) // 过滤掉 null
+             .join('\n'); // 用换行符连接
 
+         // --- 2. 生成出场人物设定部分 (对所有 AI 隐藏其他人的秘密) ---
+         const characterFields: (keyof AICharacter)[] = [
+             'name', 'identity', 'gender', 'age', 'personality', 'background',
+             'appearance', 'abilities', 'goals', 'secrets', 'relationships',
+             'mannerisms', 'voiceTone', 'catchphrase', 'notes'
+         ];
+         // Helper function to format character details, optionally hiding secrets
+         const formatCharacterDetails = (char: AICharacter, hideSecrets: boolean): string => {
+            return characterFields
+                .map(key => {
+                    // 如果是 'secrets' 字段且需要隐藏，则跳过
+                    if (hideSecrets && key === 'secrets') {
+                        return null;
+                    }
+                    const value = char[key];
+                     // 对标签数组或关系数组特殊处理 (如果 future proofing)
+                     // if ((key === 'tags' || key === 'relationships') && Array.isArray(value) && value.length > 0) {
+                     //     return `${key}: ${value.join(', ')}`;
+                     // }
+                    if (value !== undefined && value !== null && String(value).trim() !== '') {
+                         // 添加中文标签（可以扩展这个映射）
+                         const labelMap: Record<string, string> = {
+                              name: '姓名', identity: '身份', gender: '性别', age: '年龄', personality: '性格',
+                              background: '背景故事', appearance: '外貌描述', abilities: '能力/特长',
+                              goals: '目标/动机', secrets: '秘密', relationships: '人物关系',
+                              mannerisms: '言行举止/小动作', voiceTone: '说话音调/风格',
+                              catchphrase: '口头禅', notes: '其他备注'
+                         };
+                        return `  ${labelMap[key] || key}: ${String(value).trim()}`; // 两空格缩进
+                    }
+                    return null;
+                })
+                .filter(Boolean)
+                .join('\n');
+         };
+
+         // --- 3. 为每个 AI 生成专属提示词 ---
          currentAiChars.forEach((aiChar: AICharacter) => {
-             let prompt = basePrompt;
-             prompt += `\n你的任务是扮演角色: **${aiChar.name}**。\n请严格按照以下角色设定进行表演:\n- 姓名: ${aiChar.name}\n`;
-             if (aiChar.identity) prompt += `- 身份: ${aiChar.identity}\n`;
-             if (aiChar.personality) prompt += `- 性格: ${aiChar.personality}\n`;
-             if (aiChar.background) prompt += `- 背景: ${aiChar.background}\n`;
-             if (aiChar.mannerisms) prompt += `- 言行举止: ${aiChar.mannerisms}\n`;
-             if (aiChar.voiceTone) prompt += `- 说话音调: ${aiChar.voiceTone}\n`;
-             if (aiChar.catchphrase) prompt += `- 口头禅: ${aiChar.catchphrase}\n`;
-             prompt += `\n其他 AI 角色包括: ${currentAiChars.filter(c => c.id !== aiChar.id).map(c => c.name).join(', ') || '无'}\n`;
-             prompt += `对话历史中的发言会以 "角色名: 内容" 的格式呈现。\n请你只输出你扮演的角色 (${aiChar.name}) 的对话内容，不要包含角色名和冒号，也不要进行任何与角色扮演无关的评论或解释。\n`;
-             newPrompts[aiChar.id] = prompt;
-             chatLogger.info(`Generated system prompt for ${aiChar.name}`);
+
+            // --- 3a. 生成对【其他角色】(包括用户)的描述，隐藏秘密 ---
+            const otherCharacterDescriptions = chatConfig.participatingCharacters
+                .filter(c => c.id !== aiChar.id) // 排除当前 AI 自己
+                .map(otherChar => {
+                    const details = formatCharacterDetails(otherChar, true); // hideSecrets = true
+                    return `${otherChar.name}:\n${details}`;
+                })
+                .join('\n\n'); // 其他角色之间空一行
+
+            // --- 3b. 生成对【当前 AI 自己】的描述，包含秘密 ---
+            const ownCharacterDescription = formatCharacterDetails(aiChar, false); // hideSecrets = false
+
+            // --- 3c. 组装最终提示词 ---
+            const prompt = `你现在正在参与一个 AI 即兴剧场。\n\n` +
+                           `=== 剧本设定 ===\n${scriptSettings || '无'}\n\n` + // 如果没设定则显示“无”
+                           `=== 出场人物设定 (他人信息已隐藏秘密) ===\n${otherCharacterDescriptions || '无其他角色'}\n\n` +
+                           `--- 你的重要任务 ---\n` +
+                           `你的任务是扮演以下角色，这是你的【完整】设定（包括你的秘密）：\n` +
+                           `**${aiChar.name}**:\n${ownCharacterDescription}\n\n` +
+                           `--- 表演规则 ---\n` +
+                           `1. 对话历史中的发言会以 "角色名: 内容" 的格式呈现。\n` +
+                           `2. 你必须只输出你扮演的角色 **(${aiChar.name})** 的对话内容。\n` +
+                           `3. 输出内容**不要**包含角色名和冒号 (例如，不要输出 "${aiChar.name}: 你好")。\n` +
+                           `4. **不要**进行任何与角色扮演无关的评论或解释。\n` +
+                           `5. 再次强调，你是 **${aiChar.name}**！请全身心投入角色！\n\n` +
+                           `现在，请根据对话历史，开始你的表演：`;
+
+             newPrompts[aiChar.id] = prompt; // 存储生成的提示词
+             chatLogger.info(`Generated NEW detailed & privacy-aware system prompt for ${aiChar.name}`); // 更新日志信息
          });
 
         if (!didCancel) {

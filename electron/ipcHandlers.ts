@@ -8,7 +8,6 @@ import { BaseLLM, LLMChatOptions, LLMResponse, StreamChunk } from './llm/BaseLLM
 import { llmServiceManager } from './llm/LLMServiceManager';
 import { proxyManager, ProxyConfig } from './ProxyManager';
 import { getSystemProxy } from 'os-proxy-config';
-// 导入你的角色和剧本类型 (假设在 ../src/types)
 import type { AICharacter, Script } from '../src/types';
 // 导入聊天快照类型
 import type { ChatPageStateSnapshot } from '../src/types';
@@ -586,7 +585,6 @@ export function registerLLMServiceHandlers(getMainWindow: () => BrowserWindow | 
 
      try {
        console.log(`[IPC 主进程] 开始为 ${providerId} 启动流式输出...`);
-       // 假设 generateChatCompletionStream 返回 AsyncGenerator<StreamChunk>
        // 检查 service 是否有 generateChatCompletionStream 方法
        if (typeof service.generateChatCompletionStream !== 'function') {
            console.error(`[IPC 主进程] 服务商 ${providerId} 不支持流式输出。`);
