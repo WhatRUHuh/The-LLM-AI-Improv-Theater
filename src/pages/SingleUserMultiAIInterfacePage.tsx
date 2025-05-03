@@ -238,8 +238,8 @@ const SingleUserMultiAIInterfacePage: FC = () => {
             const otherCharacterDescriptions = chatConfig.participatingCharacters
                 .filter(c => c.id !== aiChar.id) // 排除当前 AI 自己
                 .map(otherChar => {
-                    const details = formatCharacterDetails(otherChar, true); // hideSecrets = true
-                    return `${otherChar.name}:\n${details}`;
+                    // 只提供其他角色的名字，不提供详细设定
+                    return `${otherChar.name}`;
                 })
                 .join('\n\n'); // 其他角色之间空一行
 
@@ -249,20 +249,21 @@ const SingleUserMultiAIInterfacePage: FC = () => {
             // --- 3c. 组装前置提示词（角色设定、剧本信息等） ---
             const prePrompt = `你现在正在参与一个 AI 即兴剧场。\n\n` +
                            `=== 剧本设定 ===\n${scriptSettings || '无'}\n\n` + // 如果没设定则显示“无”
-                           `=== 出场人物设定 (他人信息已隐藏秘密) ===\n${otherCharacterDescriptions || '无其他角色'}\n\n` +
+                           `=== 其他出场人物 ===\n${otherCharacterDescriptions || '无其他角色'}\n\n` +
                            `--- 你的重要任务 ---\n` +
                            `你的任务是扮演以下角色，这是你的【完整】设定（包括你的秘密）：\n` +
                            `**${aiChar.name}**:\n${ownCharacterDescription}\n\n` +
-                           `请注意，你是 **${aiChar.name}**，不是其他任何角色。你必须严格按照你的角色设定行事。`;
+                           `请注意，你是 **${aiChar.name}**，不是其他任何角色。你必须严格按照你的角色设定行事。\n\n` +
+                           `在对话历史中，你会看到格式为"角色名: 内容"的消息。当你看到"${aiChar.name}: "开头的消息时，那是你之前说的话。其他角色名开头的消息是其他角色说的话，不是你说的。`;
 
             // --- 3d. 组装后置提示词（输出格式要求等，移除了"对话历史中的发言会以角色名: 内容的格式呈现"） ---
             const postPrompt = `--- 表演规则 ---\n` +
                            `1. 你必须只输出你扮演的角色 **(${aiChar.name})** 的对话内容。\n` +
-                           `2. 输出内容**不要**包含角色名和冒号 (例如，不要输出 "${aiChar.name}: 你好")。\n` +
-                           `3. **不要**在你的回复中包含或引用其他角色的对话。\n` +
-                           `4. **不要**进行任何与角色扮演无关的评论或解释。\n` +
+                           `2. 直接输出对话内容，不要包含"${aiChar.name}: "这样的前缀。\n` +
+                           `3. 只输出你自己角色的台词和表演，不要在你的回复中引用或包含其他角色的对话或名字！\n` +
+                           `4. 不进行任何与角色扮演无关的评论或解释。\n` +
                            `5. 再次强调，你是 **${aiChar.name}**！请全身心投入角色！\n\n` +
-                           `记住：你是 **${aiChar.name}**，请认真扮演好自己的角色！不要在回复中包含其他角色的对话！\n\n` +
+                           `记住：你是 **${aiChar.name}**，请认真扮演好自己的角色！你不是其他任何角色，你只是${aiChar.name}！\n\n` +
                            `现在，请根据对话历史，开始你的表演：`;
 
              newPrompts[aiChar.id] = { prePrompt, postPrompt }; // 存储前置和后置提示词
@@ -336,7 +337,7 @@ const SingleUserMultiAIInterfacePage: FC = () => {
         try {
             const llmHistory = history.map(msg => ({
                 role: (msg.role === 'user' ? 'user' : 'assistant') as 'user' | 'assistant',
-                content: `${msg.characterName}: ${msg.content}` // 保留前缀用于上下文
+                content: `${msg.characterName}: ${msg.content}` // 使用简单的"角色名: 内容"格式
             }));
 
             // 组合前置和后置提示词
@@ -801,7 +802,7 @@ const SingleUserMultiAIInterfacePage: FC = () => {
                         role: 'user' as const,
                         characterId: userCharacter.id,
                         characterName: userCharacter.name,
-                        content: '请认真扮演好自己的角色，不要在回复中包含其他角色的对话，继续对话',
+                        content: '请认真扮演好自己的角色，直接输出对话内容，不要包含角色名前缀，不要引用其他角色的对话，继续对话',
                         timestamp: Date.now()
                     }
                 ];
