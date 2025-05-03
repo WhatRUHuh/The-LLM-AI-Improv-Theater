@@ -5,7 +5,8 @@ import {
     Space, theme, Checkbox, Radio, Tooltip, Row, Col, RadioChangeEvent
 } from 'antd';
 import {
-    SendOutlined, ArrowLeftOutlined, SyncOutlined, OrderedListOutlined, QuestionCircleOutlined
+    SendOutlined, ArrowLeftOutlined, SyncOutlined, OrderedListOutlined
+    // Removed unused QuestionCircleOutlined
 } from '@ant-design/icons';
 import type {
     AICharacter,
@@ -324,22 +325,32 @@ const SingleUserMultiAIInterfacePage: FC = () => {
         if (initializationError || aiCharacters.length === 0) return;
 
         chatLogger.info(`Sequential mode: Trying to trigger next AI. Current index: ${nextSequentialAIIndex}`);
-        const targetAIsInOrder = selectedTargetAIIds
-            .map(id => aiCharacters.find((c: AICharacter) => c.id === id))
-            .filter((c): c is AICharacter => !!c);
+        // 使用记录了点击顺序的 selectedTargetAIIds
+        const targetAIIdsInOrder = selectedTargetAIIds;
 
-        if (nextSequentialAIIndex < targetAIsInOrder.length) {
-            const nextAI = targetAIsInOrder[nextSequentialAIIndex];
-            chatLogger.info(`Sequential mode: Sending to next AI: ${nextAI.name} (index ${nextSequentialAIIndex})`);
-            setNextSequentialAIIndex(currentIndex => currentIndex + 1);
-            // 直接调用 sendToSingleAI
-            sendToSingleAI(nextAI, currentHistory);
+        if (nextSequentialAIIndex < targetAIIdsInOrder.length) {
+            const nextAIId = targetAIIdsInOrder[nextSequentialAIIndex];
+            const nextAI = aiCharacters.find((c: AICharacter) => c.id === nextAIId); // 根据 ID 找到 AI 对象
+            if (nextAI) {
+                chatLogger.info(`Sequential mode: Sending to next AI: ${nextAI.name} (index ${nextSequentialAIIndex})`);
+                setNextSequentialAIIndex(currentIndex => currentIndex + 1);
+                // 直接调用 sendToSingleAI
+                sendToSingleAI(nextAI, currentHistory);
+            } else {
+                 chatLogger.error(`Sequential mode: Could not find AI character with ID ${nextAIId} at index ${nextSequentialAIIndex}`);
+                 setNextSequentialAIIndex(currentIndex => currentIndex + 1); // 跳过找不到的 AI
+                 // 尝试触发下一个（如果还有的话）
+                  setMessages(currentMsgState => {
+                     triggerNextSequentialAIRef.current?.(currentMsgState);
+                     return currentMsgState;
+                 });
+            }
         } else {
             chatLogger.info('Sequential mode: All AIs have responded.');
             setNextSequentialAIIndex(0); // 重置索引
         }
-    // 依赖项
-    }, [initializationError, aiCharacters, nextSequentialAIIndex, selectedTargetAIIds, sendToSingleAI, setNextSequentialAIIndex]);
+    // 依赖项 - selectedTargetAIIds 现在是必要的，因为它决定了顺序
+    }, [initializationError, aiCharacters, nextSequentialAIIndex, selectedTargetAIIds, sendToSingleAI, setNextSequentialAIIndex]); // 移除 orderedSelectedAIs，加回 selectedTargetAIIds
 
     // --- 在每次渲染时更新 ref ---
     // 确保 sendToSingleAI 始终调用最新版本的 triggerNextSequentialAI
@@ -535,16 +546,22 @@ const SingleUserMultiAIInterfacePage: FC = () => {
             chatLogger.info(`Sequential mode: Starting sequence with ${targetAIs.length} AIs.`);
             setNextSequentialAIIndex(0);
             setTimeout(() => {
-                 const currentTargetAIs = selectedTargetAIIds
-                    .map(id => aiCharacters.find((c: AICharacter) => c.id === id))
-                    .filter((c): c is AICharacter => !!c);
-                 if (currentTargetAIs.length > 0) {
-                     chatLogger.info(`Sequential mode: Triggering first AI: ${currentTargetAIs[0].name}`);
-                     setNextSequentialAIIndex(1);
-                     sendToSingleAI(currentTargetAIs[0], updatedMessages);
+                 // 使用记录了点击顺序的 selectedTargetAIIds
+                 const currentTargetAIIds = selectedTargetAIIds;
+                 if (currentTargetAIIds.length > 0) {
+                     const firstAIId = currentTargetAIIds[0];
+                     const firstAI = aiCharacters.find((c: AICharacter) => c.id === firstAIId);
+                     if (firstAI) {
+                         chatLogger.info(`Sequential mode: Triggering first AI: ${firstAI.name}`);
+                         setNextSequentialAIIndex(1); // 索引从 0 开始，下一个是 1
+                         sendToSingleAI(firstAI, updatedMessages); // 发送给第一个
+                     } else {
+                         chatLogger.error(`Sequential mode: Could not find the first AI character with ID ${firstAIId}`);
+                         setNextSequentialAIIndex(0); // 重置，因为第一个就找不到了
+                     }
                  } else {
-                    chatLogger.warn("Sequential mode: No target AIs found when starting sequence.");
-                    setNextSequentialAIIndex(0);
+                     chatLogger.warn("Sequential mode: No target AIs selected when starting sequence.");
+                     setNextSequentialAIIndex(0);
                  }
             }, 0);
         }
@@ -560,7 +577,22 @@ const SingleUserMultiAIInterfacePage: FC = () => {
     };
 
     // --- 控制项处理函数 ---
-    const handleTargetAIChange = (checkedValues: (string | number | boolean)[]) => { setSelectedTargetAIIds(checkedValues as string[]); };
+    const handleTargetAIChange = (checkedValues: (string | number | boolean)[]) => {
+        const newSelectedIds = checkedValues as string[];
+        setSelectedTargetAIIds(prevSelectedIds => {
+            // 找出新勾选的 ID
+            const newlyAdded = newSelectedIds.filter(id => !prevSelectedIds.includes(id));
+            // 找出取消勾选的 ID
+            const removed = prevSelectedIds.filter(id => !newSelectedIds.includes(id));
+
+            // 基于之前的顺序，移除取消勾选的，然后追加新勾选的
+            let updatedOrderedIds = prevSelectedIds.filter(id => !removed.includes(id));
+            updatedOrderedIds = [...updatedOrderedIds, ...newlyAdded]; // 新增的放在最后
+
+            chatLogger.info('Selected Target AI IDs changed (ordered):', updatedOrderedIds);
+            return updatedOrderedIds;
+        });
+    };
     const handleResponseModeChange = (e: RadioChangeEvent) => { setAiResponseMode(e.target.value); setNextSequentialAIIndex(0); };
 
     // --- 消息渲染 ---
@@ -627,7 +659,29 @@ const SingleUserMultiAIInterfacePage: FC = () => {
                 <Row gutter={16} align="middle">
                     <Col flex="auto">
                         <Typography.Text strong>选择回复对象：</Typography.Text>
-                        <Checkbox.Group options={aiCharacters.map(ai => ({ label: ai.name, value: ai.id }))} value={selectedTargetAIIds} onChange={handleTargetAIChange} disabled={isOverallLoading} />
+                        <Checkbox.Group
+                            value={selectedTargetAIIds}
+                            onChange={handleTargetAIChange}
+                            disabled={isOverallLoading}
+                            style={{ display: 'inline-block' }} // 让 Checkbox 内部能更好地排列
+                        >
+                            {aiCharacters.map((ai: AICharacter) => {
+                                const isSelected = selectedTargetAIIds.includes(ai.id);
+                                let displayLabel = ai.name;
+                                // 如果是顺序模式且当前 AI 被选中，则添加基于点击顺序的序号
+                                if (aiResponseMode === 'sequential' && isSelected) {
+                                    const indexInSelectionOrder = selectedTargetAIIds.indexOf(ai.id); // 使用 indexOf 获取点击顺序
+                                    if (indexInSelectionOrder !== -1) {
+                                        displayLabel += ` (${indexInSelectionOrder + 1})`; // 序号从 1 开始
+                                    }
+                                }
+                                return (
+                                    <Checkbox key={ai.id} value={ai.id} style={{ marginRight: 8 }}>
+                                        {displayLabel}
+                                    </Checkbox>
+                                );
+                            })}
+                        </Checkbox.Group>
                     </Col>
                     <Col>
                         <Radio.Group onChange={handleResponseModeChange} value={aiResponseMode} buttonStyle="solid" disabled={isOverallLoading}>
@@ -638,9 +692,7 @@ const SingleUserMultiAIInterfacePage: FC = () => {
                                 <Radio.Button value="sequential"><OrderedListOutlined /> 顺序回复</Radio.Button>
                             </Tooltip>
                         </Radio.Group>
-                        <Tooltip title="同时回复：您的消息会发给所有选中的AI，它们会同时开始思考并回复。\n顺序回复：您的消息会先发给第一个选中的AI，等它回复后，再连同它的回复一起发给第二个选中的AI，以此类推。">
-                            <QuestionCircleOutlined style={{ marginLeft: 8, color: '#888', cursor: 'help' }} />
-                        </Tooltip>
+                        {/* Removed the QuestionCircleOutlined tooltip */}
                     </Col>
                 </Row>
             </Card>
