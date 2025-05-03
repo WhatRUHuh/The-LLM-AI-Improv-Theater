@@ -105,7 +105,7 @@ export class GoogleLLM extends BaseLLM {
       if (lastMessage?.role === 'assistant') {
         // 如果最后一条是 assistant 说的，就在末尾追加一条伪造的用户消息
         console.warn('[GoogleLLM] 检测到最后一条消息是助手消息，追加伪造的用户消息以尝试绕过API限制。');
-        effectiveMessages = [...options.messages, { role: 'user', content: '请认真扮演好自己的角色' }];
+        effectiveMessages = [...options.messages, { role: 'user', content: '请认真扮演好自己的角色，不要在回复中包含其他角色的对话，继续对话' }];
       }
       // --- 投机取巧 Hack 结束 ---
 
@@ -228,7 +228,7 @@ export class GoogleLLM extends BaseLLM {
     if (lastMessage?.role === 'assistant') {
       // 如果最后一条是 assistant 说的，就在末尾追加一条伪造的用户消息
       console.warn('[GoogleLLM Stream] 检测到最后一条消息是助手消息，追加伪造的用户消息以尝试绕过API限制。');
-      effectiveMessages = [...options.messages, { role: 'user', content: '请认真扮演好自己的角色' }];
+      effectiveMessages = [...options.messages, { role: 'user', content: '请认真扮演好自己的角色，不要在回复中包含其他角色的对话，继续对话' }];
     }
     // --- 投机取巧 Hack 结束 ---
 

@@ -252,14 +252,17 @@ const SingleUserMultiAIInterfacePage: FC = () => {
                            `=== 出场人物设定 (他人信息已隐藏秘密) ===\n${otherCharacterDescriptions || '无其他角色'}\n\n` +
                            `--- 你的重要任务 ---\n` +
                            `你的任务是扮演以下角色，这是你的【完整】设定（包括你的秘密）：\n` +
-                           `**${aiChar.name}**:\n${ownCharacterDescription}`;
+                           `**${aiChar.name}**:\n${ownCharacterDescription}\n\n` +
+                           `请注意，你是 **${aiChar.name}**，不是其他任何角色。你必须严格按照你的角色设定行事。`;
 
             // --- 3d. 组装后置提示词（输出格式要求等，移除了"对话历史中的发言会以角色名: 内容的格式呈现"） ---
             const postPrompt = `--- 表演规则 ---\n` +
                            `1. 你必须只输出你扮演的角色 **(${aiChar.name})** 的对话内容。\n` +
                            `2. 输出内容**不要**包含角色名和冒号 (例如，不要输出 "${aiChar.name}: 你好")。\n` +
-                           `3. **不要**进行任何与角色扮演无关的评论或解释。\n` +
-                           `4. 再次强调，你是 **${aiChar.name}**！请全身心投入角色！\n\n` +
+                           `3. **不要**在你的回复中包含或引用其他角色的对话。\n` +
+                           `4. **不要**进行任何与角色扮演无关的评论或解释。\n` +
+                           `5. 再次强调，你是 **${aiChar.name}**！请全身心投入角色！\n\n` +
+                           `记住：你是 **${aiChar.name}**，请认真扮演好自己的角色！不要在回复中包含其他角色的对话！\n\n` +
                            `现在，请根据对话历史，开始你的表演：`;
 
              newPrompts[aiChar.id] = { prePrompt, postPrompt }; // 存储前置和后置提示词
@@ -783,7 +786,27 @@ const SingleUserMultiAIInterfacePage: FC = () => {
 
         if (aiResponseMode === 'simultaneous') {
             chatLogger.info(`Simultaneous mode: Sending message to ${targetAIs.length} AIs.`);
-            targetAIs.forEach(ai => sendToSingleAI(ai, updatedMessages));
+
+            // 检查最后一条消息是否是用户消息
+            const lastMessage = updatedMessages[updatedMessages.length - 1];
+            if (lastMessage && lastMessage.role === 'user') {
+                // 如果最后一条是用户消息，直接发送给所有AI
+                targetAIs.forEach(ai => sendToSingleAI(ai, updatedMessages));
+            } else {
+                // 如果最后一条不是用户消息，为所有AI添加相同的伪造用户消息
+                chatLogger.warn('Simultaneous mode: 最后一条消息不是用户消息，为所有AI添加相同的伪造用户消息');
+                const messagesWithFakeUser = [
+                    ...updatedMessages,
+                    {
+                        role: 'user' as const,
+                        characterId: userCharacter.id,
+                        characterName: userCharacter.name,
+                        content: '请认真扮演好自己的角色，不要在回复中包含其他角色的对话，继续对话',
+                        timestamp: Date.now()
+                    }
+                ];
+                targetAIs.forEach(ai => sendToSingleAI(ai, messagesWithFakeUser));
+            }
         } else { // 顺序模式
             // --- 顺序模式启动逻辑 ---
             chatLogger.info(`Sequential mode: Starting sequence with ${targetAIs.length} AIs.`);
