@@ -9,6 +9,7 @@ import { readStore } from './storage/jsonStore';
 import { mainLogger as logger } from './utils/logger'; // 导入日志工具
 import { setupGlobalEncoding } from './utils/encoding'; // 导入编码工具
 import { initLogger, writeLog, closeLogger } from './utils/fileLogger'; // 导入文件日志工具
+import { initChatLogger, closeChatLogger } from './utils/chatLoggerUtil'; // <-- 导入聊天日志工具
 
 // 设置全局编码为UTF-8 (异步函数，但我们不需要等待它完成)
 // 在Windows平台上，尝试设置控制台代码页为UTF-8
@@ -259,6 +260,16 @@ app.on('before-quit', () => {
   logger.info('应用程序即将退出，正在执行清理操作...');
   // 关闭日志文件
   closeLogger();
+  // 关闭聊天日志文件 (使用 await 确保完成)
+  // 注意: 'before-quit' 事件处理程序通常是同步的，但为了确保文件关闭，使用 async 并等待
+  (async () => {
+      try {
+          await closeChatLogger();
+          logger.info('聊天日志已关闭.');
+      } catch (err) {
+          logger.error('关闭聊天日志时出错:', err);
+      }
+  })();
 });
 
 app.on('activate', () => {
@@ -295,7 +306,8 @@ app.whenReady().then(async () => {
   logger.info('应用已就绪.');
   try {
     // 初始化日志系统
-    initLogger();
+    initLogger(); // 初始化应用日志
+    await initChatLogger(); // 初始化聊天日志
     logger.info('日志系统已初始化');
 
     // 注册日志 IPC 通道

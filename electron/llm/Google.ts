@@ -9,6 +9,7 @@ import {
   BlockedReason, // 导入 BlockedReason
   GenerateContentResponse, // 导入流式响应块类型
 } from '@google/genai'; // <--- 修改库导入
+import { logChatMessage } from '../utils/chatLoggerUtil'; // <-- 导入聊天日志工具
 // 导入 StreamChunk 类型定义
 import { BaseLLM, LLMResponse, LLMChatOptions, StreamChunk } from './BaseLLM';
 
@@ -152,40 +153,47 @@ export class GoogleLLM extends BaseLLM {
       }
 
       // --- 记录请求详情 ---
-      console.log(`[GoogleLLM] 发送非流式请求到模型 ${options.model}。最后消息: "${lastUserMessageContent}"。历史记录长度: ${history.length}`);
-      try {
-        // 记录请求选项，现在包含完整的 System Prompt
-        console.log('[GoogleLLM] 请求选项详情:', JSON.stringify({ model: options.model, systemPrompt: options.systemPrompt, temperature: options.temperature, maxTokens: options.maxTokens, historyLength: history.length }, null, 2));
-        // 解开注释，记录完整的请求历史记录
-        console.log('[GoogleLLM] 完整请求历史:', JSON.stringify(history, null, 2));
-      } catch (e) { console.error('[GoogleLLM] 记录请求选项详情或历史时出错:', e); }
-      // --- 记录结束 ---
+      // === 聊天日志记录 ===
+      const sessionIdentifier = 'non-stream-' + Date.now(); // 简单会话标识符
+      logChatMessage(sessionIdentifier, 'TO_AI', `User (Triggering ${this.providerId})`, 'Request Options', { model: options.model, systemPrompt: options.systemPrompt, temperature: options.temperature, maxTokens: options.maxTokens });
+      logChatMessage(sessionIdentifier, 'TO_AI', `User (Triggering ${this.providerId})`, 'Effective Last Message', lastUserMessageContent);
+      logChatMessage(sessionIdentifier, 'TO_AI', `User (Triggering ${this.providerId})`, 'API History', history);
+      // === 记录结束 ===
 
       // 调用 SDK 的 sendMessage 方法，传入处理后的最后一条用户消息内容
       const result = await chat.sendMessage({ message: lastUserMessageContent });
 
       // --- 记录响应详情 ---
-      console.log('[GoogleLLM] 收到非流式响应');
-      try {
-        // 记录完整的响应对象，以便调试
-        console.log('[GoogleLLM] 完整响应对象:', JSON.stringify(result, null, 2));
-      } catch (e) { console.error('[GoogleLLM] 记录完整响应对象时出错:', e); }
-      // --- 记录结束 ---
+      // === 聊天日志记录 ===
+      logChatMessage(sessionIdentifier, 'FROM_AI', `AI:${this.providerId}/${options.model}`, 'API Response', result);
+      // === 记录结束 ===
 
       const responseText = result.text; // 保留此行用于后续逻辑
 
       if (result.promptFeedback?.blockReason) {
          const blockReason: BlockedReason = result.promptFeedback.blockReason;
-         console.error(`[GoogleLLM] 请求因安全策略被阻止：${blockReason}`);
-         return { content: '', error: `请求被安全策略阻止: ${blockReason}` };
+         const blockErrorMsg = `请求被安全策略阻止: ${blockReason}`;
+         console.error(`[GoogleLLM] ${blockErrorMsg}`);
+         // === 聊天日志记录 ===
+         logChatMessage(sessionIdentifier, 'FROM_AI', `AI:${this.providerId}/${options.model}`, 'Safety Block', { blockReason });
+         // === 记录结束 ===
+         return { content: '', error: blockErrorMsg };
       }
       const finishReason = result.candidates?.[0]?.finishReason;
       if (!responseText && finishReason && finishReason !== FinishReason.STOP && finishReason !== FinishReason.MAX_TOKENS) {
-         console.error(`[GoogleLLM] 响应生成意外中止：${finishReason}`);
-         return { content: '', error: `响应生成中止: ${finishReason}` };
+         const abortErrorMsg = `响应生成中止: ${finishReason}`;
+         console.error(`[GoogleLLM] ${abortErrorMsg}`);
+          // === 聊天日志记录 ===
+          logChatMessage(sessionIdentifier, 'FROM_AI', `AI:${this.providerId}/${options.model}`, 'Generation Aborted', { finishReason });
+          // === 记录结束 ===
+         return { content: '', error: abortErrorMsg };
       }
        if (!responseText && (!finishReason || finishReason === FinishReason.STOP || finishReason === FinishReason.MAX_TOKENS) && !result.promptFeedback?.blockReason) {
-           console.warn('[GoogleLLM] 未接收到内容，且无阻止或意外中止原因。');
+           const warnMsg = '[GoogleLLM] 未接收到内容，且无阻止或意外中止原因。';
+           console.warn(warnMsg);
+            // === 聊天日志记录 ===
+            logChatMessage(sessionIdentifier, 'FROM_AI', `AI:${this.providerId}/${options.model}`, 'Empty Response (No Block)', { finishReason });
+            // === 记录结束 ===
            return { content: '', modelUsed: options.model };
        }
 
@@ -264,26 +272,24 @@ export class GoogleLLM extends BaseLLM {
     const history = this.mapMessagesToGoogleContent(messagesForHistory); // 转换历史记录格式
 
     let stream: AsyncGenerator<GenerateContentResponse>; // 定义流的类型
+    const sessionIdentifier = 'stream-' + Date.now(); // <-- 把定义移到 try 外面
 
     try { // 外层 try...catch 捕获 API 调用和流处理中的错误
         if (history.length === 0) {
             // --- 处理第一次请求 (无历史记录) ---
-            console.log(`[GoogleLLM Stream] 发送首次流式请求到模型 ${options.model}。消息: "${lastUserMessageContent}"`);
-            // --- 记录请求详情 ---
-            try {
-               const requestPayload = { // 构建实际发送的负载用于记录
-                   model: options.model,
-                   contents: [{ role: 'user', parts: [{ text: lastUserMessageContent }] }],
-                   config: {
-                      ...generationConfig,
-                      safetySettings: safetySettings,
-                      // 记录完整的 System Prompt
-                      systemInstruction: systemInstruction,
-                   }
-               };
-               console.log('[GoogleLLM Stream] 首次请求负载详情:', JSON.stringify(requestPayload, null, 2));
-            } catch (e) { console.error('[GoogleLLM Stream] 记录首次请求负载详情时出错:', e); }
-            // --- 记录结束 ---
+            const firstRequestPayload = { // 构建实际发送的负载用于记录
+                model: options.model,
+                contents: [{ role: 'user', parts: [{ text: lastUserMessageContent }] }],
+                config: {
+                   ...generationConfig,
+                   safetySettings: safetySettings,
+                   systemInstruction: systemInstruction,
+                }
+            };
+             // === 聊天日志记录 ===
+             console.log(`[GoogleLLM Stream] 发送首次流式请求到模型 ${options.model}。`); // 保留简短控制台日志
+             logChatMessage(sessionIdentifier, 'TO_AI', `User (Triggering ${this.providerId})`, 'First Request Payload', firstRequestPayload);
+             // === 记录结束 ===
             // 调用 generateContentStream，传递包含所有参数的对象
             stream = await this.sdk.models.generateContentStream({
                 model: options.model, // model 必须在这里
@@ -297,15 +303,12 @@ export class GoogleLLM extends BaseLLM {
             });
         } else {
             // --- 处理后续请求 (有历史记录) ---
-            console.log(`[GoogleLLM Stream] 发送后续流式请求到模型 ${options.model}。消息: "${lastUserMessageContent}"，历史长度: ${history.length}`);
-             // --- 记录请求详情 ---
-             try {
-                // 记录请求选项，包含完整的 System Prompt
-                console.log('[GoogleLLM Stream] 后续请求选项详情:', JSON.stringify({ model: options.model, systemInstruction: systemInstruction, temperature: options.temperature, maxTokens: options.maxTokens, historyLength: history.length }, null, 2));
-                // 解开注释，记录完整的请求历史记录
-                console.log('[GoogleLLM Stream] 完整请求历史:', JSON.stringify(history, null, 2));
-             } catch (e) { console.error('[GoogleLLM Stream] 记录后续请求选项详情或历史时出错:', e); }
-             // --- 记录结束 ---
+             // === 聊天日志记录 ===
+             console.log(`[GoogleLLM Stream] 发送后续流式请求到模型 ${options.model}。历史长度: ${history.length}`); // 保留简短控制台日志
+             logChatMessage(sessionIdentifier, 'TO_AI', `User (Triggering ${this.providerId})`, 'Subsequent Request Options', { model: options.model, systemInstruction: systemInstruction, temperature: options.temperature, maxTokens: options.maxTokens, historyLength: history.length });
+             logChatMessage(sessionIdentifier, 'TO_AI', `User (Triggering ${this.providerId})`, 'Effective Last Message', lastUserMessageContent);
+             logChatMessage(sessionIdentifier, 'TO_AI', `User (Triggering ${this.providerId})`, 'API History', history);
+             // === 记录结束 ===
             const chat = this.sdk.chats.create({
                 model: options.model, // model 必须在这里
                 history: history, // history 在这里
@@ -320,30 +323,40 @@ export class GoogleLLM extends BaseLLM {
 
         // --- 统一处理流遍历和 Yield ---
         for await (const chunk of stream) {
-            // --- 记录收到的每个数据块 ---
-            try {
-                // 使用 JSON.stringify 记录完整的 chunk 结构，便于调试
-                console.log('[GoogleLLM Stream] 收到数据块:', JSON.stringify(chunk, null, 2));
-            } catch (e) { console.error('[GoogleLLM Stream] 记录数据块时出错:', e); }
-            // --- 记录结束 ---
+           // === 聊天日志记录 ===
+           logChatMessage(sessionIdentifier, 'FROM_AI', `AI:${this.providerId}/${options.model}`, 'API Raw Chunk', chunk);
+           // === 记录结束 ===
             const chunkText = chunk.text; // 尝试获取文本 (保持不变)
 
             // 检查是否有错误或安全阻止 (保持不变)
             if (chunk.promptFeedback?.blockReason) {
                 const blockReason: BlockedReason = chunk.promptFeedback.blockReason;
-                console.error(`[GoogleLLM Stream] 请求因安全策略被阻止：${blockReason}`);
-                yield { error: `请求被安全策略阻止: ${blockReason}`, done: true };
+                const blockErrorMsg = `请求因安全策略被阻止: ${blockReason}`;
+                console.error(`[GoogleLLM Stream] ${blockErrorMsg}`);
+                // === 聊天日志记录 ===
+                logChatMessage(sessionIdentifier, 'FROM_AI', `AI:${this.providerId}/${options.model}`, 'Safety Block', { blockReason });
+                // === 记录结束 ===
+                yield { error: blockErrorMsg, done: true };
                 return; // 流中断
             }
             const finishReason = chunk.candidates?.[0]?.finishReason;
             if (!chunkText && finishReason && finishReason !== FinishReason.STOP && finishReason !== FinishReason.MAX_TOKENS) {
-                console.error(`[GoogleLLM Stream] 响应生成意外中止：${finishReason}`);
-                yield { error: `响应生成中止: ${finishReason}`, done: true };
+                const abortErrorMsg = `响应生成中止: ${finishReason}`;
+                console.error(`[GoogleLLM Stream] ${abortErrorMsg}`);
+                // === 聊天日志记录 ===
+                logChatMessage(sessionIdentifier, 'FROM_AI', `AI:${this.providerId}/${options.model}`, 'Generation Aborted', { finishReason });
+                // === 记录结束 ===
+                yield { error: abortErrorMsg, done: true };
                 return; // 流中断
             }
 
             // 发送文本块 (即使是空字符串也发送，以便前端知道仍在处理)
-            console.log('[GoogleLLM Stream] 输出文本块：', chunkText ?? '');
+            // console.log('[GoogleLLM Stream] 输出文本块：', chunkText ?? ''); // 这个可以移到 chat log
+            // === 聊天日志记录 ===
+            if (chunkText || (chunk.candidates && chunk.candidates.length > 0 && chunk.candidates[0].finishReason)) { // 只记录有文本或有结束原因的块
+               logChatMessage(sessionIdentifier, 'FROM_AI', `AI:${this.providerId}/${options.model}`, 'Processed Chunk', { text: chunkText ?? '', finishReason: chunk.candidates?.[0]?.finishReason });
+            }
+            // === 记录结束 ===
             yield { text: chunkText ?? '' };
         }
 
@@ -357,8 +370,11 @@ export class GoogleLLM extends BaseLLM {
 
     } catch (error: unknown) { // 这个 catch 块捕获 API 调用和流遍历过程中的错误
       // --- 记录流处理错误 ---
-      // 记录更详细的错误信息
-      console.error(`[GoogleLLM Stream] 模型 ${options.model} 流式处理时捕获到错误:`, error instanceof Error ? error.stack : error);
+      const errorMsg = `模型 ${options.model} 流式处理时捕获到错误: ${error instanceof Error ? error.stack : error}`;
+      console.error(`[GoogleLLM Stream] ${errorMsg}`);
+      // === 聊天日志记录 ===
+      logChatMessage(sessionIdentifier, 'SYSTEM_ACTION', 'GoogleLLM Stream Catch Block', 'Caught Error', { error: error instanceof Error ? error.stack : String(error) });
+      // === 记录结束 ===
       let detailedError = '处理流式响应时发生未知错误';
       if (error instanceof Error) {
         detailedError = error.message; // 保持提取 message 作为返回给前端的错误信息
