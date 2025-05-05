@@ -206,10 +206,18 @@ const DirectorModeInterfacePage: FC = () => {
 
          // --- 3. 为每个 AI 生成导演模式专属提示词 ---
          currentAiChars.forEach((aiChar: AICharacter) => {
+            // --- 3a. 生成对【其他角色】的描述，包含姓名、身份、性别、年龄、背景 ---
             const otherCharacterDescriptions = chatConfig.participatingCharacters
-                .filter(c => c.id !== aiChar.id)
-                .map(otherChar => `${otherChar.name}`) // 只列出名字
-                .join(', '); // 用逗号分隔
+                .filter(c => c.id !== aiChar.id) // 排除当前 AI 自己
+                .map(otherChar => {
+                    let description = `- ${otherChar.name}`; // 姓名是必须的
+                    if (otherChar.identity) description += ` (身份: ${otherChar.identity})`;
+                    if (otherChar.gender) description += ` (性别: ${otherChar.gender})`;
+                    if (otherChar.age) description += ` (年龄: ${otherChar.age})`;
+                    if (otherChar.background) description += `\n  背景: ${otherChar.background.split('\n')[0]}`; // 只取背景第一行，避免过长
+                    return description;
+                })
+                .join('\n'); // 每个角色占一行
 
             const ownCharacterDescription = formatCharacterDetails(aiChar, false); // 包含自己的秘密
 
