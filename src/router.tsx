@@ -8,6 +8,9 @@ import SingleUserSingleAIInterfacePage from './pages/SingleUserSingleAIInterface
 // 导入单人多 AI 页面
 import SingleUserMultiAISetupPage from './pages/SingleUserMultiAISetupPage';
 import SingleUserMultiAIInterfacePage from './pages/SingleUserMultiAIInterfacePage';
+// 导入导演模式页面
+import DirectorModeSetupPage from './pages/DirectorModeSetupPage';
+import DirectorModeInterfacePage from './pages/DirectorModeInterfacePage';
 import ScriptManagementPage from './pages/ScriptManagementPage';
 import CharacterManagementPage from './pages/CharacterManagementPage';
 import CharacterEditorPage from './pages/CharacterEditorPage';
@@ -38,6 +41,9 @@ const AppRouter: React.FC = () => {
       {/* 单人多 AI 路由 */}
       <Route path="/single-user-multi-ai-setup" element={<SingleUserMultiAISetupPage />} />
       <Route path="/single-user-multi-ai-interface" element={<SingleUserMultiAIInterfacePage />} />
+      {/* 导演模式路由 */}
+      <Route path="/director-mode-setup" element={<DirectorModeSetupPage />} />
+      <Route path="/director-mode-interface" element={<DirectorModeInterfacePage />} />
       {/* 剧本管理路由 */}
       <Route path="/scripts" element={<ScriptManagementPage />} />
       <Route path="/scripts/add" element={<ScriptEditorPage />} /> {/* 添加剧本路由 */}

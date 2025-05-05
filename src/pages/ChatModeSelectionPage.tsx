@@ -15,8 +15,11 @@ const ChatModeSelectionPage: React.FC = () => {
       navigate('/single-user-single-ai-setup', { state: { mode } });
     } else if (mode === 'singleUserMultiAI') {
       navigate('/single-user-multi-ai-setup', { state: { mode } });
+    } else if (mode === 'director') { // 添加导演模式的处理
+      navigate('/director-mode-setup', { state: { mode } });
     } else {
-       message.warning(`模式 "${mode}" 的设置页面尚未实现！`);
+       // 保留这个 else 以处理未来可能添加但未实现的模式
+       message.warning(`模式 "${mode}" 的设置页面尚未实现！`); // 中文注释
     }
   };
 

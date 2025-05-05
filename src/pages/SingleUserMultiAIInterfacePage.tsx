@@ -2,10 +2,10 @@ import React, { useState, useEffect, useRef, useCallback, useMemo, FC } from 're
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
     Input, Button, List, Spin, message, Typography, Card, Empty, Switch,
-    Space, theme, Checkbox, Radio, Tooltip, Row, Col, RadioChangeEvent
+    Space, theme, Checkbox, Row, Col // 移除了未使用的 Radio, Tooltip, RadioChangeEvent
 } from 'antd';
 import {
-    SendOutlined, ArrowLeftOutlined, SyncOutlined, OrderedListOutlined
+    SendOutlined, ArrowLeftOutlined // 移除了未使用的 SyncOutlined, OrderedListOutlined
     // Removed unused QuestionCircleOutlined
 } from '@ant-design/icons';
 import type {
@@ -19,8 +19,6 @@ import { useLastVisited } from '../hooks/useLastVisited';
 import { chatLogger } from '../utils/logger'; // 重命名后的导入别名
 
 // --- 此页面特定的类型 ---
-type AIResponseMode = 'simultaneous' | 'sequential'; // 同时或顺序回复模式
-
 // 定义各 AI 的加载状态
 type AILoadingState = Record<string, boolean>;
 
@@ -35,7 +33,7 @@ interface MultiAIChatPageStateSnapshot extends Omit<ChatPageStateSnapshot, 'chat
     chatConfig: ChatConfig & { mode: 'singleUserMultiAI' };
     systemPrompts: Record<string, SplitSystemPrompt>; // 存储所有系统提示词（前置和后置）
     selectedTargetAIIds: string[];
-    aiResponseMode: AIResponseMode;
+    // aiResponseMode: AIResponseMode; // 已移除回复模式状态
     nextSequentialAIIndex?: number;
 }
 
@@ -53,8 +51,8 @@ const SingleUserMultiAIInterfacePage: FC = () => {
     const [chatSessionId, setChatSessionId] = useState<string>('');
     const [isStreamingEnabled, setIsStreamingEnabled] = useState<boolean>(true);
     const [selectedTargetAIIds, setSelectedTargetAIIds] = useState<string[]>([]);
-    const [aiResponseMode, setAiResponseMode] = useState<AIResponseMode>('simultaneous');
-    const [nextSequentialAIIndex, setNextSequentialAIIndex] = useState<number>(0); // 保留，但作用可能减弱
+    // const [aiResponseMode, setAiResponseMode] = useState<AIResponseMode>('simultaneous'); // 已移除回复模式状态
+    const [nextSequentialAIIndex, setNextSequentialAIIndex] = useState<number>(0); // 保留，用于顺序触发逻辑
     const [respondedInTurnAIIds, setRespondedInTurnAIIds] = useState<Set<string>>(new Set()); // 新增：记录本轮已回复的AI ID
     const [chatConfig, setChatConfig] = useState<(ChatConfig & { mode: 'singleUserMultiAI' }) | null>(null);
     const [initializationError, setInitializationError] = useState<string | null>(null);
@@ -84,7 +82,7 @@ const SingleUserMultiAIInterfacePage: FC = () => {
         let sessionIdToSet = '';
         let streamingToSet = true;
         let targetsToSet: string[] = [];
-        let responseModeToSet: AIResponseMode = 'simultaneous';
+        // let responseModeToSet: AIResponseMode = 'simultaneous'; // 已移除回复模式状态
         const loadingStateToSet: AILoadingState = {};
         let seqIndexToSet = 0;
 
@@ -99,7 +97,7 @@ const SingleUserMultiAIInterfacePage: FC = () => {
                 sessionIdToSet = snapshot.chatSessionId ?? '';
                 streamingToSet = snapshot.isStreamingEnabled ?? true;
                 targetsToSet = snapshot.selectedTargetAIIds ?? [];
-                responseModeToSet = snapshot.aiResponseMode ?? 'simultaneous';
+                // responseModeToSet = snapshot.aiResponseMode ?? 'simultaneous'; // 已移除回复模式状态
                 seqIndexToSet = snapshot.nextSequentialAIIndex ?? 0;
                 // 注意：respondedInTurnAIIds 是瞬态的，通常不需要从快照恢复，每次会话开始时重置
 
@@ -133,9 +131,9 @@ const SingleUserMultiAIInterfacePage: FC = () => {
             setChatSessionId(sessionIdToSet);
             setIsStreamingEnabled(streamingToSet);
             setSelectedTargetAIIds(targetsToSet);
-            setAiResponseMode(responseModeToSet);
+            // setAiResponseMode(responseModeToSet); // 已移除回复模式状态设置
             setAILoadingState(loadingStateToSet);
-            setNextSequentialAIIndex(seqIndexToSet); // 恢复旧索引，但可能在启动时被重置
+            setNextSequentialAIIndex(seqIndexToSet); // 恢复旧索引
             setRespondedInTurnAIIds(new Set()); // 初始化为空集合
             setInitializationError(null);
         } else {
@@ -292,13 +290,13 @@ const SingleUserMultiAIInterfacePage: FC = () => {
         if (!initializationError && chatConfig && chatSessionId && Object.keys(systemPrompts).length > 0) {
             const currentStateSnapshot: MultiAIChatPageStateSnapshot = {
                 chatConfig, messages, inputValue, systemPrompts, chatSessionId,
-                isStreamingEnabled, selectedTargetAIIds, aiResponseMode, nextSequentialAIIndex, // respondedInTurnAIIds 不保存
+                isStreamingEnabled, selectedTargetAIIds, /* aiResponseMode, */ nextSequentialAIIndex, // 已移除 aiResponseMode
             };
             updateLastVisitedNavInfo('singleUserMultiAIInterface', location.pathname, undefined, currentStateSnapshot);
         }
     }, [
         messages, inputValue, chatConfig, systemPrompts, chatSessionId,
-        isStreamingEnabled, selectedTargetAIIds, aiResponseMode, nextSequentialAIIndex, // 移除 respondedInTurnAIIds
+        isStreamingEnabled, selectedTargetAIIds, /* aiResponseMode, */ nextSequentialAIIndex, // 已移除 aiResponseMode
         initializationError, updateLastVisitedNavInfo, location.pathname
     ]);
 
@@ -378,11 +376,10 @@ const SingleUserMultiAIInterfacePage: FC = () => {
                             content: result.data.content.trim(), timestamp: Date.now(),
                         };
                         setMessages(prev => [...prev, aiResponse]);
-                        // --- 非流式顺序回复完成处理 ---
-                        if (aiResponseMode === 'sequential') {
-                            setRespondedInTurnAIIds(prev => new Set(prev).add(aiChar.id)); // 1. 标记完成
-                             // 2. 释放原子锁
-                             if (sequentialTriggerLock.current[aiChar.id]) {
+                        // --- 非流式顺序回复完成处理 (现在总是顺序模式) ---
+                        setRespondedInTurnAIIds(prev => new Set(prev).add(aiChar.id)); // 1. 标记完成
+                         // 2. 释放原子锁
+                         if (sequentialTriggerLock.current[aiChar.id]) {
                                  sequentialTriggerLock.current[aiChar.id] = false;
                                  chatLogger.info(`Sequential lock released for ${aiChar.name} after non-stream success.`);
                              }
@@ -400,15 +397,13 @@ const SingleUserMultiAIInterfacePage: FC = () => {
                                     chatLogger.warn(`Skipping duplicate schedule attempt after ${aiChar.name} non-stream success.`);
                                  }
                                  return prevMsgs;
-                             });
-                        }
-                    } else {
-                        // --- 非流式顺序回复失败处理 ---
-                        message.error(`AI (${aiChar.name}) 回复失败: ${result.error || '未知错误'}`);
-                         if (aiResponseMode === 'sequential') {
-                            // 标记完成（失败也算完成）
-                            setRespondedInTurnAIIds(prev => new Set(prev).add(aiChar.id)); // 1. 标记完成
-                             // 2. 释放原子锁
+                              });
+                   } else {
+                       // --- 非流式顺序回复失败处理 (现在总是顺序模式) ---
+                       message.error(`AI (${aiChar.name}) 回复失败: ${result.error || '未知错误'}`);
+                       // 标记完成（失败也算完成）
+                       setRespondedInTurnAIIds(prev => new Set(prev).add(aiChar.id)); // 1. 标记完成
+                        // 2. 释放原子锁
                              if (sequentialTriggerLock.current[aiChar.id]) {
                                  sequentialTriggerLock.current[aiChar.id] = false;
                                  chatLogger.info(`Sequential lock released for ${aiChar.name} after non-stream failure.`);
@@ -428,16 +423,14 @@ const SingleUserMultiAIInterfacePage: FC = () => {
                                   }
                                   return prevMsgs;
                              });
-                         }
-                    }
-                } catch (error: unknown) {
-                    // --- 非流式调用本身出错处理 ---
-                    const errorMsg = error instanceof Error ? error.message : String(error);
-                    message.error(`调用 AI (${aiChar.name}) 时出错: ${errorMsg}`);
-                     if (aiResponseMode === 'sequential') {
-                        // 标记完成（出错也算完成）
-                        setRespondedInTurnAIIds(prev => new Set(prev).add(aiChar.id)); // 1. 标记完成
-                         // 2. 释放原子锁
+                  }
+              } catch (error: unknown) {
+                  // --- 非流式调用本身出错处理 (现在总是顺序模式) ---
+                  const errorMsg = error instanceof Error ? error.message : String(error);
+                  message.error(`调用 AI (${aiChar.name}) 时出错: ${errorMsg}`);
+                  // 标记完成（出错也算完成）
+                  setRespondedInTurnAIIds(prev => new Set(prev).add(aiChar.id)); // 1. 标记完成
+                   // 2. 释放原子锁
                          if (sequentialTriggerLock.current[aiChar.id]) {
                              sequentialTriggerLock.current[aiChar.id] = false;
                              chatLogger.info(`Sequential lock released for ${aiChar.name} after non-stream catch.`);
@@ -456,22 +449,20 @@ const SingleUserMultiAIInterfacePage: FC = () => {
                                  chatLogger.warn(`Skipping duplicate schedule attempt after ${aiChar.name} non-stream catch.`);
                               }
                               return prevMsgs;
-                        });
-                     }
-                } finally {
-                    setAILoadingState(prev => ({ ...prev, [aiChar.id]: false }));
-                    // 非流式的触发逻辑已在 try/catch 内部处理
+                       });
+        } finally {
+            setAILoadingState(prev => ({ ...prev, [aiChar.id]: false }));
+            // 非流式的触发逻辑已在 try/catch 内部处理 (现在总是顺序模式)
                 }
             }
         } catch (error: unknown) {
             const errorMsg = error instanceof Error ? error.message : String(error);
             message.error(`准备发送消息给 ${aiChar.name} 时出错: ${errorMsg}`);
             setAILoadingState(prev => ({ ...prev, [aiChar.id]: false }));
-            // --- 外层 try...catch 的顺序回复失败处理 ---
-            if (aiResponseMode === 'sequential') {
-                 // 标记完成（外层catch出错也算完成）
-                 setRespondedInTurnAIIds(prev => new Set(prev).add(aiChar.id)); // 1. 标记完成
-                 // 2. 释放原子锁
+            // --- 外层 try...catch 的顺序回复失败处理 (现在总是顺序模式) ---
+             // 标记完成（外层catch出错也算完成）
+             setRespondedInTurnAIIds(prev => new Set(prev).add(aiChar.id)); // 1. 标记完成
+             // 2. 释放原子锁
                  if (sequentialTriggerLock.current[aiChar.id]) {
                      sequentialTriggerLock.current[aiChar.id] = false;
                      chatLogger.info(`Sequential lock released for ${aiChar.name} after outer catch.`);
@@ -491,20 +482,19 @@ const SingleUserMultiAIInterfacePage: FC = () => {
                       }
                       return prevMsgs;
                  });
-            }
         }
-    // 依赖项 - 添加 setRespondedInTurnAIIds
+    // 依赖项 - 已移除 aiResponseMode
     }, [
         chatConfig, systemPrompts, chatSessionId, isStreamingEnabled,
-        initializationError, aiResponseMode, setMessages, setAILoadingState,
+        initializationError, /* aiResponseMode, */ setMessages, setAILoadingState, // 已移除 aiResponseMode
         setRespondedInTurnAIIds, aiLoadingState // 添加依赖
     ]);
 
 
-    // --- useCallback 用于触发下一个顺序 AI (重写逻辑) ---
+    // --- useCallback 用于触发下一个顺序 AI (现在是唯一模式) ---
     const triggerNextSequentialAI = useCallback((currentHistory: ChatMessage[]) => {
-        // 检查是否处于顺序模式且初始化无误
-        if (aiResponseMode !== 'sequential' || initializationError || aiCharacters.length === 0) {
+        // 检查初始化是否无误 (不再需要检查 aiResponseMode)
+        if (initializationError || aiCharacters.length === 0) { // 修复：移除对 aiResponseMode 的检查
             return;
         }
 
@@ -549,12 +539,12 @@ const SingleUserMultiAIInterfacePage: FC = () => {
             // 不需要重置 respondedInTurnAIIds，它会在下一次用户发送消息时重置
             // 也不需要重置 nextSequentialAIIndex，因为我们不再主要依赖它来查找
         }
-    // 依赖项：需要包含所有在函数内部使用的状态和回调
+    // 依赖项：已移除 aiResponseMode
     }, [
-        aiResponseMode, initializationError, aiCharacters, selectedTargetAIIds,
+        /* aiResponseMode, */ initializationError, aiCharacters, selectedTargetAIIds, // 已移除 aiResponseMode
         respondedInTurnAIIds, aiLoadingState, // 确保 aiLoadingState 在依赖数组中
         sendToSingleAI, setRespondedInTurnAIIds, setAILoadingState // 其他依赖项
-    ]); // 修正：useCallback 依赖项应包含 aiLoadingState
+    ]);
 
     // --- 在每次渲染时更新 ref (保持不变) ---
      useEffect(() => {
@@ -637,11 +627,10 @@ const SingleUserMultiAIInterfacePage: FC = () => {
                      // 否则返回原始副本（无修改）
                      return prevMessages;
                  });
-                 // --- 流式错误处理，顺序模式下触发下一个 ---
-                 if (aiResponseMode === 'sequential') {
-                    // 标记完成（流式错误也算完成）
-                    setRespondedInTurnAIIds(prev => new Set(prev).add(aiCharacterId)); // 1. 标记完成
-                     // 2. 释放原子锁
+                 // --- 流式错误处理，顺序模式下触发下一个 (现在总是顺序模式) ---
+                // 标记完成（流式错误也算完成）
+                setRespondedInTurnAIIds(prev => new Set(prev).add(aiCharacterId)); // 1. 标记完成
+                 // 2. 释放原子锁
                      if (sequentialTriggerLock.current[aiCharacterId]) {
                          sequentialTriggerLock.current[aiCharacterId] = false;
                          chatLogger.info(`Sequential lock released for ${aiChar?.name} after stream error.`);
@@ -660,11 +649,10 @@ const SingleUserMultiAIInterfacePage: FC = () => {
                             chatLogger.warn(`Skipping duplicate schedule attempt after ${aiChar?.name} stream error.`);
                          }
                          return prevMsgs;
-                    });
-                 }
-             }
+                     });
+              }
 
-             // --- 处理流式完成 ---
+              // --- 处理流式完成 ---
              if (chunk.done) {
                  chatLogger.info(`AI (${aiChar.name}) 流式响应完成。`);
                  setAILoadingState(prev => ({ ...prev, [aiCharacterId]: false })); // 更新加载状态
@@ -680,7 +668,7 @@ const SingleUserMultiAIInterfacePage: FC = () => {
                              chatSessionId,
                              isStreamingEnabled,
                              selectedTargetAIIds,
-                             aiResponseMode,
+                             // aiResponseMode, // 已移除
                              nextSequentialAIIndex
                          };
                          window.electronAPI.saveChatSession(chatSessionId, snapshotToSave)
@@ -690,11 +678,10 @@ const SingleUserMultiAIInterfacePage: FC = () => {
                      });
                  }
 
-                 // --- 流式完成处理，顺序模式下触发下一个 ---
-                 if (aiResponseMode === 'sequential') {
-                    // 标记完成
-                    setRespondedInTurnAIIds(prev => new Set(prev).add(aiCharacterId)); // 1. 标记完成
-                     // 2. 释放原子锁
+                 // --- 流式完成处理，顺序模式下触发下一个 (现在总是顺序模式) ---
+                // 标记完成
+                setRespondedInTurnAIIds(prev => new Set(prev).add(aiCharacterId)); // 1. 标记完成
+                 // 2. 释放原子锁
                      if (sequentialTriggerLock.current[aiCharacterId]) {
                          sequentialTriggerLock.current[aiCharacterId] = false;
                          chatLogger.info(`Sequential lock released for ${aiChar?.name} after stream done.`);
@@ -713,12 +700,11 @@ const SingleUserMultiAIInterfacePage: FC = () => {
                              chatLogger.warn(`Skipping duplicate schedule attempt after ${aiChar?.name} stream done.`);
                          }
                          return prevMsgs;
-                    });
-                 }
-             }
-         }; // handleStreamChunk 结束
+                     });
+              }
+          }; // handleStreamChunk 结束
 
-         chatLogger.info('Registering unified stream listener...');
+          chatLogger.info('Registering unified stream listener...');
          const disposeHandle = window.electronAPI.onLLMStreamChunk(handleStreamChunk as (data: unknown) => void);
 
          return () => {
@@ -728,7 +714,7 @@ const SingleUserMultiAIInterfacePage: FC = () => {
      }, [
          initializationError,
          aiCharacters,
-         aiResponseMode,
+         // aiResponseMode, // 已移除
          // 添加缺失的依赖项
          chatConfig,
          chatSessionId,
@@ -772,7 +758,7 @@ const SingleUserMultiAIInterfacePage: FC = () => {
                 chatSessionId,
                 isStreamingEnabled,
                 selectedTargetAIIds,
-                aiResponseMode,
+                // aiResponseMode, // 已移除
                 nextSequentialAIIndex
             };
             window.electronAPI.saveChatSession(chatSessionId, snapshotToSave)
@@ -785,43 +771,18 @@ const SingleUserMultiAIInterfacePage: FC = () => {
             .map(id => aiCharacters.find((c: AICharacter) => c.id === id))
             .filter((c): c is AICharacter => !!c);
 
-        if (aiResponseMode === 'simultaneous') {
-            chatLogger.info(`Simultaneous mode: Sending message to ${targetAIs.length} AIs.`);
-
-            // 检查最后一条消息是否是用户消息
-            const lastMessage = updatedMessages[updatedMessages.length - 1];
-            if (lastMessage && lastMessage.role === 'user') {
-                // 如果最后一条是用户消息，直接发送给所有AI
-                targetAIs.forEach(ai => sendToSingleAI(ai, updatedMessages));
-            } else {
-                // 如果最后一条不是用户消息，为所有AI添加相同的伪造用户消息
-                chatLogger.warn('Simultaneous mode: 最后一条消息不是用户消息，为所有AI添加相同的伪造用户消息');
-                const messagesWithFakeUser = [
-                    ...updatedMessages,
-                    {
-                        role: 'user' as const,
-                        characterId: userCharacter.id,
-                        characterName: userCharacter.name,
-                        content: '请认真扮演好自己的角色，直接输出对话内容，不要包含角色名前缀，不要引用其他角色的对话，继续对话',
-                        timestamp: Date.now()
-                    }
-                ];
-                targetAIs.forEach(ai => sendToSingleAI(ai, messagesWithFakeUser));
-            }
-        } else { // 顺序模式
-            // --- 顺序模式启动逻辑 ---
-            chatLogger.info(`Sequential mode: Starting sequence with ${targetAIs.length} AIs.`);
-            setRespondedInTurnAIIds(new Set()); // 清空“已回复”名单
-            sequentialTriggerLock.current = {}; // 清空AI处理原子锁记录
-            scheduleTriggerLock.current = false; // 重置调度锁
-            setNextSequentialAIIndex(0); // 重置索引（可能仍有用）
-            // 使用 setTimeout 确保状态更新后再触发第一个 AI
-            setTimeout(() => {
-                 // 直接调用重构后的 triggerNextSequentialAI 来启动序列
-                // 它会自己找到第一个未响应的 AI
-                triggerNextSequentialAIRef.current?.(updatedMessages);
-            }, 0);
-        }
+        // --- 顺序模式启动逻辑 (现在是唯一逻辑) ---
+        chatLogger.info(`顺序模式：开始序列，包含 ${targetAIs.length} 个 AI。`); // 全中文注释
+        setRespondedInTurnAIIds(new Set()); // 清空“已回复”名单
+        sequentialTriggerLock.current = {}; // 清空AI处理原子锁记录
+        scheduleTriggerLock.current = false; // 重置调度锁
+        setNextSequentialAIIndex(0); // 重置索引
+        // 使用 setTimeout 确保状态更新后再触发第一个 AI
+        setTimeout(() => {
+             // 直接调用 triggerNextSequentialAI 来启动序列
+            // 它会自己找到第一个未响应的 AI
+            triggerNextSequentialAIRef.current?.(updatedMessages);
+        }, 0);
     };
 
     // --- 输入处理 ---
@@ -850,7 +811,7 @@ const SingleUserMultiAIInterfacePage: FC = () => {
             return updatedOrderedIds;
         });
     };
-    const handleResponseModeChange = (e: RadioChangeEvent) => { setAiResponseMode(e.target.value); setNextSequentialAIIndex(0); };
+    // const handleResponseModeChange = (e: RadioChangeEvent) => { setAiResponseMode(e.target.value); setNextSequentialAIIndex(0); }; // 已移除模式切换处理函数
 
     // --- 消息渲染 ---
     const renderMessage = (item: ChatMessage) => {
@@ -925,8 +886,8 @@ const SingleUserMultiAIInterfacePage: FC = () => {
                             {aiCharacters.map((ai: AICharacter) => {
                                 const isSelected = selectedTargetAIIds.includes(ai.id);
                                 let displayLabel = ai.name;
-                                // 如果是顺序模式且当前 AI 被选中，则添加基于点击顺序的序号
-                                if (aiResponseMode === 'sequential' && isSelected) {
+                                // 如果当前 AI 被选中，则添加基于点击顺序的序号 (现在总是顺序模式)
+                                if (isSelected) { // 已移除 aiResponseMode === 'sequential' 的判断
                                     const indexInSelectionOrder = selectedTargetAIIds.indexOf(ai.id); // 使用 indexOf 获取点击顺序
                                     if (indexInSelectionOrder !== -1) {
                                         displayLabel += ` (${indexInSelectionOrder + 1})`; // 序号从 1 开始
@@ -940,17 +901,7 @@ const SingleUserMultiAIInterfacePage: FC = () => {
                             })}
                         </Checkbox.Group>
                     </Col>
-                    <Col>
-                        <Radio.Group onChange={handleResponseModeChange} value={aiResponseMode} buttonStyle="solid" disabled={isOverallLoading}>
-                            <Tooltip title="选中的 AI 将同时收到消息并回复">
-                                <Radio.Button value="simultaneous"><SyncOutlined /> 同时回复</Radio.Button>
-                            </Tooltip>
-                            <Tooltip title="选中的 AI 将按选择顺序依次回复">
-                                <Radio.Button value="sequential"><OrderedListOutlined /> 顺序回复</Radio.Button>
-                            </Tooltip>
-                        </Radio.Group>
-                        {/* Removed the QuestionCircleOutlined tooltip */}
-                    </Col>
+                    {/* 已移除回复模式切换的 Radio.Group */}
                 </Row>
             </Card>
             {/* 聊天区域 */}
