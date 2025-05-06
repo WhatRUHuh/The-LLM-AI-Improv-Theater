@@ -1,7 +1,8 @@
 import Anthropic, { ClientOptions } from '@anthropic-ai/sdk';
 // 导入 StreamChunk 类型
 import { BaseLLM, LLMResponse, LLMChatOptions, StreamChunk } from './BaseLLM';
-// import { MessageStreamEvent } from '@anthropic-ai/sdk/resources/messages'; // 移除未使用的导入
+import type { AIConfig } from '../../src/types'; // 导入 AIConfig 类型
+import { logChatMessage } from '../utils/chatLoggerUtil'; // <-- 导入聊天日志工具
 
 /**
  * Anthropic Claude 服务商的实现
@@ -9,8 +10,7 @@ import { BaseLLM, LLMResponse, LLMChatOptions, StreamChunk } from './BaseLLM';
 export class AnthropicLLM extends BaseLLM {
   readonly providerId = 'anthropic';
   readonly providerName = 'Anthropic Claude';
-  // Anthropic 的基础 URL，也可以从配置读取
-  readonly baseApiUrl = 'https://api.anthropic.com/v1'; // 请根据实际情况确认
+  // baseApiUrl 将从 BaseLLM 的构造函数中通过 AIConfig 设置
 
   // 默认支持的模型列表 (Claude 3 系列等)
   readonly defaultModels: string[] = [
@@ -24,27 +24,24 @@ export class AnthropicLLM extends BaseLLM {
 
   private anthropic: Anthropic | null = null;
 
-  /**
-   * 重写 setApiKey 方法，在设置 key 时初始化 Anthropic 客户端
-   */
-  override setApiKey(apiKey: string | null): void {
-    super.setApiKey(apiKey);
-    if (apiKey) {
-      try {
-        const clientOptions: ClientOptions = {
-          apiKey: apiKey,
-          // baseURL: this.baseApiUrl, // 可以考虑允许用户配置 Base URL
-        };
+  constructor(config: AIConfig) {
+    super(config); // 调用基类构造函数，apiKey 和 baseApiUrl 会在那里被设置
+    try {
+      const clientOptions: ClientOptions = {
+        apiKey: this.apiKey, // 从基类获取 apiKey
+        baseURL: this.baseApiUrl, // 从基类获取 baseApiUrl
+      };
 
-        this.anthropic = new Anthropic(clientOptions);
-        console.log(`Anthropic 客户端已为提供商 ${this.providerId} 初始化完成`);
-      } catch (error) {
-         console.error(`为提供商 ${this.providerId} 初始化 Anthropic 客户端失败：`, error);
-         this.anthropic = null;
+      // 如果 baseURL 未定义或为空字符串，从选项中移除，让 SDK 使用默认值
+      if (!clientOptions.baseURL) {
+        delete clientOptions.baseURL;
       }
-    } else {
-      this.anthropic = null;
-      console.log(`Anthropic 客户端已为提供商 ${this.providerId} 销毁`);
+
+      this.anthropic = new Anthropic(clientOptions);
+      console.log(`[AnthropicLLM] Anthropic 客户端已使用配置 (ID: ${this.configId}, Name: ${this.configName}) 初始化完成。Base URL: ${clientOptions.baseURL || '默认 Anthropic API'}`);
+    } catch (error) {
+       console.error(`[AnthropicLLM] 使用配置 (ID: ${this.configId}, Name: ${this.configName}) 初始化 Anthropic 客户端失败：`, error);
+       this.anthropic = null; // 初始化失败，重置客户端
     }
   }
 
@@ -56,17 +53,17 @@ export class AnthropicLLM extends BaseLLM {
       return { content: '', error: 'Anthropic API Key 未设置或客户端初始化失败' };
     }
 
+    const aiConfigLogInfo = { id: this.configId, name: this.configName, serviceProvider: this.providerId };
+    const sessionIdentifier = `anthropic-non-stream-${Date.now()}`;
+
     try {
-      // --- 构造 Anthropic API 请求参数 ---
       const systemPrompt = options.systemPrompt;
-      // 确保 messages 只包含 user/assistant
       const messages = options.messages
         .filter(m => m.role === 'user' || m.role === 'assistant')
         .map(m => ({ role: m.role, content: m.content })) as Anthropic.Messages.MessageParam[];
 
-      // 简单检查并处理消息顺序 (确保以 user 开头)
       if (messages.length > 0 && messages[0].role !== 'user') {
-         console.warn('【Anthropic】第一条消息不是来自用户，已添加占位符。');
+         logChatMessage(sessionIdentifier, 'SYSTEM_ACTION', this.providerId, 'Message Order Adjustment', '第一条消息不是来自用户，已添加占位符。', aiConfigLogInfo);
          messages.unshift({ role: 'user', content: '(Context begins)' });
       }
 
@@ -74,18 +71,14 @@ export class AnthropicLLM extends BaseLLM {
         model: options.model,
         messages: messages,
         system: systemPrompt,
-        max_tokens: options.maxTokens ?? 1024, // Anthropic 需要 max_tokens
+        max_tokens: options.maxTokens ?? 1024,
         temperature: options.temperature,
-        // stream: false, // 非流式请求
       };
 
-      console.log(`正在向模型 ${options.model} 发送请求`); // 简化日志
-
+      logChatMessage(sessionIdentifier, 'TO_AI', this.providerId, 'Request Parameters', params, aiConfigLogInfo);
       const completion: Anthropic.Messages.Message = await this.anthropic.messages.create(params);
+      logChatMessage(sessionIdentifier, 'FROM_AI', this.providerId, 'API Response', completion, aiConfigLogInfo);
 
-      console.log('已接收到完成结果'); // 简化日志
-
-      // --- 解析 Anthropic 响应 ---
       let content = '';
       if (completion.content && completion.content.length > 0) {
          const textBlock = completion.content.find(block => block.type === 'text');
@@ -107,7 +100,9 @@ export class AnthropicLLM extends BaseLLM {
       };
 
     } catch (error: unknown) {
-      console.error(`模型 ${options.model} 聊天完成时发生错误：`, error);
+      const errorMessage = `模型 ${options.model} 聊天完成时发生错误：${error instanceof Error ? error.message : String(error)}`;
+      logChatMessage(sessionIdentifier, 'FROM_AI', this.providerId, 'Error', { error: error instanceof Error ? error.stack : String(error), params: options }, aiConfigLogInfo);
+      console.error(`[AnthropicLLM] ${errorMessage}`);
       let detailedError = '与 Anthropic API 通信时发生未知错误';
       if (error instanceof Anthropic.APIError) {
         detailedError = `Anthropic API Error (${error.status}): ${error.message}`;
@@ -129,16 +124,17 @@ export class AnthropicLLM extends BaseLLM {
       return;
     }
 
+    const aiConfigLogInfo = { id: this.configId, name: this.configName, serviceProvider: this.providerId };
+    const sessionIdentifier = `anthropic-stream-${Date.now()}`;
+
     try {
-      // --- 构造 Anthropic API 请求参数 ---
       const systemPrompt = options.systemPrompt;
       const messages = options.messages
         .filter(m => m.role === 'user' || m.role === 'assistant')
         .map(m => ({ role: m.role, content: m.content })) as Anthropic.Messages.MessageParam[];
 
-      // 简单检查并处理消息顺序 (确保以 user 开头)
       if (messages.length > 0 && messages[0].role !== 'user') {
-        console.warn('【Anthropic 流】第一条消息不是来自用户，已添加占位符。');
+        logChatMessage(sessionIdentifier, 'SYSTEM_ACTION', this.providerId, 'Message Order Adjustment (Stream)', '第一条消息不是来自用户，已添加占位符。', aiConfigLogInfo);
         messages.unshift({ role: 'user', content: '(Context begins)' });
       }
 
@@ -148,49 +144,42 @@ export class AnthropicLLM extends BaseLLM {
         system: systemPrompt,
         max_tokens: options.maxTokens ?? 1024,
         temperature: options.temperature,
-        stream: true, // <-- 启用流式响应
+        stream: true,
       };
 
-      console.log(`正在向模型 ${options.model} 发送流式请求`);
-
+      logChatMessage(sessionIdentifier, 'TO_AI', this.providerId, 'Stream Request Parameters', params, aiConfigLogInfo);
       const stream = await this.anthropic.messages.stream(params);
 
-      // --- 遍历流事件并 Yield 数据块 ---
       for await (const event of stream) {
-        // console.log('[Anthropic Stream] Received event:', event.type); // 调试日志
+        logChatMessage(sessionIdentifier, 'FROM_AI', this.providerId, 'Stream Raw Event', event, aiConfigLogInfo);
 
         switch (event.type) {
           case 'content_block_delta':
             if (event.delta.type === 'text_delta') {
-              // console.log('[Anthropic Stream] Text delta:', event.delta.text);
               yield { text: event.delta.text };
             }
             break;
           case 'message_start':
-            // console.log('[Anthropic Stream] Message started. Input tokens:', event.message.usage.input_tokens);
-            yield { modelUsed: event.message.model };
+            yield { modelUsed: event.message.model }; // modelUsed is useful here
             break;
           case 'message_delta':
-            // console.log('[Anthropic Stream] Message delta. Output tokens:', event.usage.output_tokens);
+            // Potentially log usage if needed: event.usage.output_tokens
             break;
-          case 'message_stop': { // 添加花括号
-            console.log(`模型 ${options.model} 的流式请求已完成。`);
-            yield { done: true }; // 移除 usage 获取
+          case 'message_stop':
+            logChatMessage(sessionIdentifier, 'FROM_AI', this.providerId, 'Stream Ended', { model: options.model, event }, aiConfigLogInfo);
+            yield { done: true };
             break;
-          }
           case 'content_block_start':
-            break;
           case 'content_block_stop':
+            // These are structural events, can be logged if verbose logging is needed
             break;
-          // 移除 case 'error'
+          // Errors are typically caught by the outer try-catch
         }
       }
-      // 如果循环正常结束但没有收到 message_stop，也发送 done
-      // 但通常 SDK 会确保发送 message_stop
-      // yield { done: true };
-
     } catch (error: unknown) {
-      console.error(`模型 ${options.model} 的流式聊天完成时发生错误：`, error);
+      const errorMessage = `模型 ${options.model} 流式聊天完成时发生错误：${error instanceof Error ? error.message : String(error)}`;
+      logChatMessage(sessionIdentifier, 'FROM_AI', this.providerId, 'Stream Error', { error: error instanceof Error ? error.stack : String(error), params: options }, aiConfigLogInfo);
+      console.error(`[AnthropicLLM Stream] ${errorMessage}`);
       let detailedError = '与 Anthropic API 通信时发生未知错误';
       if (error instanceof Anthropic.APIError) {
         detailedError = `Anthropic API Error (${error.status}): ${error.message}`;

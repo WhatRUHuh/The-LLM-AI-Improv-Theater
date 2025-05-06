@@ -48,6 +48,8 @@ export interface StreamChunk {
  * 所有 LLM 服务商实现的基类或接口
  * 定义了与不同 LLM 服务交互所需的通用方法和属性
  */
+import type { AIConfig } from '../../src/types'; // 导入 AIConfig 类型
+
 export abstract class BaseLLM {
   // --- 属性 ---
 
@@ -63,35 +65,56 @@ export abstract class BaseLLM {
   abstract readonly providerName: string;
 
   /**
-   * 该服务商的基础 API URL (可能在子类中硬编码或从配置读取)
+   * 该服务商的基础 API URL，从 AIConfig 读取
    */
-  abstract readonly baseApiUrl?: string; // 设为可选，因为本地模型可能没有 URL
+  protected readonly baseApiUrl?: string;
 
   /**
-   * 用户配置的 API Key
+   * 用户配置的 API Key，从 AIConfig 读取
    */
-  protected apiKey: string | null = null;
+  protected readonly apiKey: string;
+
+  /**
+   * 当前服务实例关联的 AIConfig 的 ID
+   */
+  public readonly configId: string;
+
+  /**
+   * 当前服务实例关联的 AIConfig 的名称
+   */
+  public readonly configName: string;
+
 
   /**
    * 该服务商支持的默认模型列表
    */
   abstract readonly defaultModels: string[];
 
+  // --- 构造函数 ---
+  /**
+   * 构造函数
+   * @param config AI 配置对象，包含 apiKey 和可选的 baseURL
+   */
+  constructor(config: AIConfig) {
+    if (!config.apiKey) {
+      // 在实际应用中，这里可能应该抛出更具体的错误或者有更完善的错误处理
+      throw new Error(`[BaseLLM] API Key 未在配置 (ID: ${config.id}) 中提供。`);
+    }
+    this.apiKey = config.apiKey;
+    this.baseApiUrl = config.baseURL;
+    this.configId = config.id;
+    this.configName = config.name;
+    // console.log(`[BaseLLM] 服务实例已使用配置 (ID: ${this.configId}, Name: ${this.configName}) 初始化 for provider: ${this.providerId}`);
+  }
+
+
   // --- 方法 ---
 
   /**
-   * 设置 API Key
-   * @param apiKey 用户提供的 API Key
+   * 获取当前配置的 API Key (主要用于内部或测试, 但现在推荐直接使用 this.apiKey)
+   * @deprecated API Key 现在通过构造函数设置，并直接作为 readonly 属性访问。
    */
-  setApiKey(apiKey: string | null): void {
-    this.apiKey = apiKey;
-    console.log(`已为服务商设置 API Key: ${this.providerId}`);
-  }
-
-  /**
-   * 获取当前配置的 API Key (主要用于内部或测试)
-   */
-  getApiKey(): string | null {
+  getApiKey(): string {
     return this.apiKey;
   }
 

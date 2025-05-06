@@ -4,6 +4,13 @@ import { app } from 'electron';
 import util from 'util';
 import { UTF8_OPTIONS } from './encoding'; // 假设编码选项在这里定义
 
+// 为日志记录定义一个更简洁的 AIConfig 信息接口
+interface AIChatLogInfo {
+  id: string;
+  name: string;
+  serviceProvider: string;
+}
+
 // 聊天日志文件相关变量
 let chatLogFileHandle: fs.FileHandle | null = null;
 let chatLogFilePath: string | null = null;
@@ -68,13 +75,21 @@ export async function initChatLogger(): Promise<void> {
  * @param actor 操作者/角色名 (e.g., 'User', 'AI:王皇后', 'System')
  * @param dataType 数据类型 (e.g., 'Request Options', 'Response Chunk', 'Error', 'History Entry')
  * @param data 具体数据内容
+ * @param aiConfig 可选的AI配置信息，用于增强日志
  * @returns 格式化后的日志消息字符串
  */
-function formatChatMessage(sessionId: string | undefined, direction: string, actor: string, dataType: string, data: unknown): string {
+function formatChatMessage(sessionId: string | undefined, direction: string, actor: string, dataType: string, data: unknown, aiConfig?: AIChatLogInfo): string {
   const timestamp = `[${new Date().toLocaleString('zh-CN')}]`;
   const sessionStr = sessionId ? `[Session: ${sessionId}]` : '[Session: N/A]';
   const directionStr = `[${direction}]`;
-  const actorStr = `[Actor: ${actor}]`;
+  let actorStr = `[Actor: ${actor}]`; // 默认的 actor 字符串
+
+  // 如果提供了 AIConfig 信息，并且 actor 与 serviceProvider 匹配，则使用更详细的 actor 字符串
+  // 例如，actor 可能是 "Google", "OpenAI" 等
+  if (aiConfig && actor.toLowerCase() === aiConfig.serviceProvider.toLowerCase()) {
+    actorStr = `[Actor: ${aiConfig.serviceProvider} (${aiConfig.name}, ID: ${aiConfig.id})]`;
+  }
+
   const typeStr = `[Type: ${dataType}]`;
 
   let dataStr: string;
@@ -97,11 +112,12 @@ function formatChatMessage(sessionId: string | undefined, direction: string, act
  * @param actor 操作者/角色名
  * @param dataType 数据类型
  * @param data 具体数据
+ * @param aiConfig 可选的AI配置信息
  */
-export async function logChatMessage(sessionId: string | undefined, direction: string, actor: string, dataType: string, data: unknown): Promise<void> {
+export async function logChatMessage(sessionId: string | undefined, direction: string, actor: string, dataType: string, data: unknown, aiConfig?: AIChatLogInfo): Promise<void> {
   if (chatLogFileHandle && chatLogFilePath) {
     try {
-      const message = formatChatMessage(sessionId, direction, actor, dataType, data);
+      const message = formatChatMessage(sessionId, direction, actor, dataType, data, aiConfig);
       await chatLogFileHandle.write(message + '\n', null, UTF8_OPTIONS.encoding);
     } catch (error) {
       console.error('[ChatLoggerUtil] 写入聊天日志文件时出错:', error);
@@ -110,7 +126,7 @@ export async function logChatMessage(sessionId: string | undefined, direction: s
     }
   } else {
       // 如果日志文件未初始化，可以选择降级到 console.log 或忽略
-      console.warn('[ChatLoggerUtil] 聊天日志系统未初始化，消息未写入文件:', formatChatMessage(sessionId, direction, actor, dataType, data));
+      console.warn('[ChatLoggerUtil] 聊天日志系统未初始化，消息未写入文件:', formatChatMessage(sessionId, direction, actor, dataType, data, aiConfig));
   }
 }
 

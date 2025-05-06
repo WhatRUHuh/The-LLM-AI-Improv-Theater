@@ -2,7 +2,7 @@
 import type { LLMChatOptions, LLMResponse } from '../electron/llm/BaseLLM';
 import type { ProxyConfig } from '../electron/proxyManager';
 // 导入你的核心类型，确保与 preload 和后端一致
-import type { AICharacter, Script } from './types';
+import type { AICharacter, Script, AIConfig } from './types'; // 导入 AIConfig 类型
 
 declare global {
   interface Window {
@@ -25,19 +25,21 @@ declare global {
       deleteScript: (scriptId: string) => Promise<{ success: boolean; error?: string }>; // <-- 参数改为 scriptId
 
       // --- LLM 服务相关 API 类型声明 ---
-      llmGetServices: ()
+      // 更新：llmGetServices 更名为 getAllAIConfigs 并修改返回类型
+      getAllAIConfigs: ()
         => Promise<{
              success: boolean;
-             data?: { providerId: string; providerName: string; defaultModels: string[] }[];
+             data?: AIConfig[]; // <--- 修改返回类型
              error?: string;
            }>;
-      llmSetApiKey: (providerId: string, apiKey: string | null)
+      llmSetApiKey: (providerId: string, apiKey: string | null) // 此API已废弃，但保留声明
         => Promise<{ success: boolean; error?: string }>;
-      llmGetAvailableModels: (providerId: string)
+      // 更新：llmGetAvailableModels 更名为 getAvailableModelsByConfigId 并修改参数
+      getAvailableModelsByConfigId: (configId: string) // <--- 修改参数为 configId
         => Promise<{ success: boolean; data?: string[]; error?: string }>;
-      llmGetSavedKeys: ()
+      llmGetSavedKeys: () // 此API已废弃，但保留声明
         => Promise<{ success: boolean; data?: Record<string, string | null>; error?: string }>;
-      llmGetCustomModels: (providerId: string)
+      llmGetCustomModels: (providerId: string) // 此API可能也需要审视是否仍适用或需要基于configId
         => Promise<{ success: boolean; data?: string[]; error?: string }>;
       llmSaveCustomModels: (providerId: string, models: string[])
         => Promise<{ success: boolean; error?: string }>;
@@ -47,6 +49,22 @@ declare global {
       // 修改：添加可选的 characterId 参数
       llmGenerateChatStream: (providerId: string, options: LLMChatOptions, characterId?: string)
         => Promise<{ success: boolean; error?: string }>;
+
+      // --- AI 配置相关 API 类型声明 ---
+      getAIConfigsByProvider: (serviceProvider: string)
+        => Promise<{ success: boolean; data?: AIConfig[]; error?: string }>;
+      addAIConfig: (configData: Omit<AIConfig, 'id'>)
+        => Promise<{ success: boolean; data?: AIConfig; error?: string }>;
+      updateAIConfig: (configId: string, updates: Partial<Omit<AIConfig, 'id'>>)
+        => Promise<{ success: boolean; data?: AIConfig; error?: string }>;
+      deleteAIConfig: (configId: string)
+        => Promise<{ success: boolean; error?: string }>;
+      // 新增：getAIConfigById 的类型声明
+      getAIConfigById: (configId: string)
+        => Promise<{ success: boolean; data?: AIConfig; error?: string }>;
+      // 新增：获取支持的服务商列表
+      getSupportedServiceProviders: ()
+        => Promise<{ success: boolean; data?: string[]; error?: string }>;
 
       // --- 代理相关 API 类型声明 ---
       proxyGetConfig: ()

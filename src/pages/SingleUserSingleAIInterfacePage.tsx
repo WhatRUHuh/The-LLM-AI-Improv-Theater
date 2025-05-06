@@ -301,9 +301,15 @@ prompt += `\n与你对话的是由人类用户扮演的角色: **${userChar.name
         return;
     }
 
-    const aiConfig = chatConfig.aiConfigs[aiCharacter.id];
-    if (!aiConfig || !aiConfig.providerId || !aiConfig.model) {
-      message.error(`AI角色 (${aiCharacter.name}) 的配置不完整！`);
+    // 明确 aiCharacter.id 是字符串类型，并且 chatConfig.aiConfigs 的键是字符串
+    // TypeScript 有时对 Record<string, any> 的索引推断比较严格，这里确保类型匹配
+    const characterIdKey = aiCharacter.id as string; // 断言为 string，尽管它已经是 string
+    const aiConfig = chatConfig.aiConfigs[characterIdKey];
+    // 使用 modelName 替代 model
+    // 确保 configId, providerId, modelName 都存在
+    if (!aiConfig || !aiConfig.configId || !aiConfig.providerId || !aiConfig.modelName) {
+      // 中文注释：修复问题一：configId传递错误。此处检查确保configId存在，如果缺失则报错。
+      message.error(`AI角色 (${aiCharacter.name}) 的配置不完整 (配置ID、服务商或模型名称缺失)！`);
       return;
     }
 
@@ -318,16 +324,17 @@ prompt += `\n与你对话的是由人类用户扮演的角色: **${userChar.name
       }));
 
       const options: LLMChatOptions = {
-        model: aiConfig.model,
+        model: aiConfig.modelName, // 使用 modelName
         messages: llmHistory,
         systemPrompt: systemPrompt,
         stream: isStreamingEnabled, // <-- 传递流式开关状态
         // temperature, maxTokens 等也可以在这里传递 (如果需要前端控制)
       };
-
-      logger.info(`发送请求到 ${aiConfig.providerId} (${aiConfig.model}), 流式响应: ${isStreamingEnabled}`);
+ 
+      // 中文注释：修复问题一：configId传递错误。日志中记录正确的configId。
+      logger.info(`发送请求到配置ID ${aiConfig.configId} (服务商: ${aiConfig.providerId}, 模型: ${aiConfig.modelName}), 流式响应: ${isStreamingEnabled}`);
       setIsLoading(true); // 设置 loading 状态
-
+ 
       if (isStreamingEnabled) {
         // --- 处理流式请求 ---
         // 1. 添加 AI 消息占位符
@@ -339,10 +346,11 @@ prompt += `\n与你对话的是由人类用户扮演的角色: **${userChar.name
           timestamp: Date.now(),
         };
         setMessages(prevMessages => [...prevMessages, placeholderMessage]);
-
+ 
         // 2. 启动流式请求
-        const startResult = await window.electronAPI.llmGenerateChatStream(aiConfig.providerId, options);
-
+        // 中文注释：修复问题一：configId传递错误。此处将 aiConfig.providerId 修改为 aiConfig.configId。
+        const startResult = await window.electronAPI.llmGenerateChatStream(aiConfig.configId, options);
+ 
         // 3. 检查启动是否成功
         if (!startResult.success) {
           message.error(`启动流式响应失败: ${startResult.error || '未知错误'}`);
@@ -357,9 +365,10 @@ prompt += `\n与你对话的是由人类用户扮演的角色: **${userChar.name
       } else {
         // --- 处理非流式请求 ---
         try {
-            const result = await window.electronAPI.llmGenerateChat(aiConfig.providerId, options);
+            // 中文注释：修复问题一：configId传递错误。此处将 aiConfig.providerId 修改为 aiConfig.configId。
+            const result = await window.electronAPI.llmGenerateChat(aiConfig.configId, options);
             logger.info('收到非流式响应:', result);
-
+ 
             if (result.success && result.data?.content) {
               const aiResponse: ChatMessage = {
                 role: 'assistant',

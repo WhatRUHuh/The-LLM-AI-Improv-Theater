@@ -12,6 +12,7 @@ import type {
     ChatConfig,
     ChatMessage,
     // ChatPageStateSnapshot, // 可能需要为导演模式定义新的快照类型
+    // AIConfig, // 不再直接使用完整的 AIConfig 类型，而是通过 ChatConfig 中的简化结构
 } from '../types';
 import type { LLMChatOptions, StreamChunk } from '../../electron/llm/BaseLLM';
 import { useLastVisited } from '../hooks/useLastVisited';
@@ -301,9 +302,17 @@ const DirectorModeInterfacePage: FC = () => {
             chatLogger.warn(`无法发送消息给 ${aiChar.name}，缺少配置/提示/会话或初始化错误。`); // 中文注释
             return;
         }
-        const aiConfig = chatConfig.aiConfigs[aiChar.id];
-        if (!aiConfig || !aiConfig.providerId || !aiConfig.model) {
-            message.error(`AI角色 (${aiChar.name}) 的配置不完整！`); // 中文注释
+
+        // ChatConfig.aiConfigs 现在是 Record<string, { configId, modelName, providerId }>
+        // 其键是 AICharacter 的 id
+        const aiConfigToUse = chatConfig.aiConfigs[aiChar.id];
+
+        chatLogger.info(`为角色 ${aiChar.name} (ID: ${aiChar.id}) 查找到的简化版 AI 配置:`, aiConfigToUse);
+
+        // 检查找到的 aiConfigToUse 是否有效，以及其 modelName 和 providerId 是否存在
+        if (!aiConfigToUse || !aiConfigToUse.providerId || !aiConfigToUse.modelName || !aiConfigToUse.configId) {
+            message.error(`AI角色 (${aiChar.name}) 的配置不完整或未找到（服务商ID、模型名称或配置ID缺失）！请检查导演模式设置。`);
+            chatLogger.error(`AI config incomplete for ${aiChar.name}:`, aiConfigToUse);
             setAILoadingState(prev => ({ ...prev, [aiChar.id]: false }));
             return;
         }
@@ -312,32 +321,33 @@ const DirectorModeInterfacePage: FC = () => {
 
         try {
             // 格式化历史记录，将导演/旁白消息也包含进去
-            const llmHistory = history.map(msg => {
-                let role: 'user' | 'assistant';
-                let contentPrefix = '';
-                if (msg.role === 'assistant') {
-                    role = 'assistant';
-                    contentPrefix = `${msg.characterName}: `;
-                } else { // 'user' or special director/narrator roles disguised as 'user'
-                    role = 'user'; // LLM 通常只认 user 和 assistant
-                    // 根据 characterId 判断是否是特殊消息，并添加前缀
-                    if (msg.characterId === DIRECTOR_COMMAND_ID) {
-                        // 尝试从内容中解析目标
-                        const match = msg.content.match(/^\[指令 -> (.*?)]: (.*)$/s);
-                        if (match) {
-                             contentPrefix = `[导演 -> ${match[1]}]: `;
-                             msg.content = match[2]; // 只保留指令内容给 LLM
-                        } else {
-                             contentPrefix = `[导演指令]: `; // 备用前缀
-                        }
-                    } else if (msg.characterId === NARRATOR_ID) {
-                        contentPrefix = `[旁白]: `;
+            const llmHistory = history.map(currentMsg => { // 重命名 msg 为 currentMsg 避免与外部作用域冲突
+                let role: 'user' | 'assistant' = currentMsg.role; // 默认角色
+                let llmContent = currentMsg.content; // 默认内容
+
+                // LLM 通常只认 user 和 assistant。特殊角色需要转换或标记。
+                // 导演指令和旁白在历史记录中被视为 'user' 发送给 AI
+                if (currentMsg.characterId === DIRECTOR_COMMAND_ID) {
+                    role = 'user';
+                    // 尝试从内容中解析目标，以更清晰地呈现给LLM
+                    const match = currentMsg.content.match(/^\[指令 -> (.*?)]: (.*)$/s);
+                    if (match) {
+                        llmContent = `[导演 -> ${match[1]}]: ${match[2]}`; // 包含目标和指令内容
                     } else {
-                        // 普通用户扮演的角色（虽然导演模式没有，但为了兼容性保留）
-                        contentPrefix = `${msg.characterName}: `;
+                        llmContent = `[导演指令]: ${currentMsg.content}`; // 通用导演指令前缀
                     }
+                } else if (currentMsg.characterId === NARRATOR_ID) {
+                    role = 'user';
+                    llmContent = `[旁白]: ${currentMsg.content}`; // 旁白前缀
+                } else if (currentMsg.role === 'assistant') { // AI 角色的回复
+                    role = 'assistant';
+                    // AI 的回复内容不需要额外加角色名前缀，因为 postPrompt 要求它直接输出对话
+                    // llmContent = `${currentMsg.characterName}: ${currentMsg.content}`; // 这行是多余的，AI应该直接输出内容
+                } else if (currentMsg.role === 'user') { // 如果有用户扮演的角色（导演模式不直接适用，但保持兼容）
+                    role = 'user';
+                    llmContent = `${currentMsg.characterName}: ${currentMsg.content}`;
                 }
-                return { role, content: `${contentPrefix}${msg.content}` };
+                return { role, content: llmContent };
             });
 
 
@@ -345,18 +355,21 @@ const DirectorModeInterfacePage: FC = () => {
             const combinedSystemPrompt = prePrompt + '\n\n' + postPrompt;
 
             const options: LLMChatOptions = {
-                model: aiConfig.model, messages: llmHistory,
-                systemPrompt: combinedSystemPrompt, stream: isStreamingEnabled,
+                model: aiConfigToUse.modelName, // 使用 modelName
+                messages: llmHistory,
+                systemPrompt: combinedSystemPrompt,
+                stream: isStreamingEnabled,
             };
 
-            chatLogger.info(`发送请求给 ${aiChar.name} (${aiConfig.providerId}/${aiConfig.model}), Stream: ${isStreamingEnabled}`); // 中文注释
+            chatLogger.info(`发送请求给 ${aiChar.name} (${aiConfigToUse.providerId}/${aiConfigToUse.modelName}), Stream: ${isStreamingEnabled}`);
 
             if (isStreamingEnabled) {
                 const placeholderMessage: ChatMessage = {
                     role: 'assistant', characterId: aiChar.id, characterName: aiChar.name, content: '', timestamp: Date.now(),
                 };
                 setMessages(prev => [...prev, placeholderMessage]);
-                const startResult = await window.electronAPI.llmGenerateChatStream(aiConfig.providerId, options, aiChar.id);
+                // 修正：使用 configId 作为 IPC 调用的第一个参数
+                const startResult = await window.electronAPI.llmGenerateChatStream(aiConfigToUse.configId, options, aiChar.id); // 修正：使用 configId
 
                 if (!startResult.success) {
                     message.error(`启动 AI (${aiChar.name}) 流式响应失败: ${startResult.error || '未知错误'}`); // 中文注释
@@ -369,7 +382,8 @@ const DirectorModeInterfacePage: FC = () => {
             } else {
                 // --- 非流式 ---
                 try {
-                    const result = await window.electronAPI.llmGenerateChat(aiConfig.providerId, options);
+                    // 修正：使用 configId 作为 IPC 调用的第一个参数
+                    const result = await window.electronAPI.llmGenerateChat(aiConfigToUse.configId, options); // 修正：使用 configId
                     chatLogger.info(`收到来自 ${aiChar.name} 的非流式响应:`, result); // 中文注释
                     if (result.success && result.data?.content) {
                         const aiResponse: ChatMessage = {

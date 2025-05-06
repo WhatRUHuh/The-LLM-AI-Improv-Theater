@@ -2,7 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron';
 import type { LLMChatOptions, LLMResponse } from './llm/BaseLLM';
 import type { ProxyConfig } from './ProxyManager';
 // 导入角色和剧本类型，确保与后端和前端使用的类型一致
-import type { AICharacter, Script } from '../src/types';
+import type { AICharacter, Script, AIConfig } from '../src/types'; // 导入 AIConfig 类型
 import { mainLogger as logger } from './utils/logger'; // 导入日志工具
 import { setupGlobalEncoding } from './utils/encoding'; // 导入编码工具
 
@@ -47,13 +47,16 @@ contextBridge.exposeInMainWorld('electronAPI', { // 使用不同的键名，避�
     ipcRenderer.invoke('delete-script', scriptId), // <-- 传递 scriptId
 
   // --- LLM 服务相关 API ---
-  llmGetServices: (): Promise<{ success: boolean; data?: { providerId: string; providerName: string; defaultModels: string[] }[]; error?: string }> =>
-    ipcRenderer.invoke('llm-get-services'),
+  // 修改：函数名和返回类型以匹配 AIConfig[]
+  // 更新：IPC 通道名与 ipcHandlers.ts 中保持一致
+  getAllAIConfigs: (): Promise<{ success: boolean; data?: AIConfig[]; error?: string }> =>
+    ipcRenderer.invoke('get-all-ai-configs'),
   llmSetApiKey: (providerId: string, apiKey: string | null): Promise<{ success: boolean; error?: string }> =>
-    ipcRenderer.invoke('llm-set-api-key', providerId, apiKey),
-  llmGetAvailableModels: (providerId: string): Promise<{ success: boolean; data?: string[]; error?: string }> =>
-    ipcRenderer.invoke('llm-get-available-models', providerId),
-  // 新增获取已保存 Keys 的 API
+    ipcRenderer.invoke('llm-set-api-key', providerId, apiKey), // 此功能已废弃，但保留定义以防万一
+  // 修改：参数从 providerId 改为 configId
+  getAvailableModelsByConfigId: (configId: string): Promise<{ success: boolean; data?: string[]; error?: string }> =>
+    ipcRenderer.invoke('llm-get-available-models', configId),
+  // 新增获取已保存 Keys 的 API (此功能已废弃，但保留定义)
   llmGetSavedKeys: (): Promise<{ success: boolean; data?: Record<string, string | null>; error?: string }> =>
     ipcRenderer.invoke('llm-get-saved-keys'),
 // 新增：调用聊天生成 API
@@ -78,12 +81,28 @@ contextBridge.exposeInMainWorld('electronAPI', { // 使用不同的键名，避�
      ipcRenderer.invoke('proxy-set-config', config),
    proxyTestConnection: (): Promise<{ success: boolean; data?: { ip: string; proxyUrl: string; proxyMode: string }; error?: string }> =>
      ipcRenderer.invoke('proxy-test-connection'),
+ 
+   // --- AI 配置相关 API ---
+   getAIConfigsByProvider: (serviceProvider: string): Promise<{ success: boolean; data?: AIConfig[]; error?: string }> =>
+     ipcRenderer.invoke('get-ai-configs-by-provider', serviceProvider),
+   addAIConfig: (configData: Omit<AIConfig, 'id'>): Promise<{ success: boolean; data?: AIConfig; error?: string }> =>
+     ipcRenderer.invoke('add-ai-config', configData),
+   updateAIConfig: (configId: string, updates: Partial<Omit<AIConfig, 'id'>>): Promise<{ success: boolean; data?: AIConfig; error?: string }> =>
+     ipcRenderer.invoke('update-ai-config', configId, updates),
+   deleteAIConfig: (configId: string): Promise<{ success: boolean; error?: string }> =>
+     ipcRenderer.invoke('delete-ai-config', configId),
+   // 新增：根据 ID 获取单个 AI 配置
+   getAIConfigById: (configId: string): Promise<{ success: boolean; data?: AIConfig; error?: string }> =>
+     ipcRenderer.invoke('get-ai-config-by-id', configId),
+   // 新增：获取支持的服务商列表
+   getSupportedServiceProviders: (): Promise<{ success: boolean; data?: string[]; error?: string }> =>
+     ipcRenderer.invoke('get-supported-service-providers'),
 
-  // 如果还需要通用的 on/off/send，可以在这里单独暴露，或者按需添加
-  // on: (channel, listener) => { /* ... 安全实现 ... */ },
-  // send: (channel, data) => { /* ... 安全实现 ... */ },
-
-  // --- 新增：处理 LLM 流式响应 ---
+     // 如果还需要通用的 on/off/send，可以在这里单独暴露，或者按需添加
+     // on: (channel, listener) => { /* ... 安全实现 ... */ },
+   // send: (channel, data) => { /* ... 安全实现 ... */ },
+ 
+   // --- 新增：处理 LLM 流式响应 ---
   // 定义流式数据块的预期结构 (可以根据实际情况调整)
   // type LLMStreamChunk = { text?: string; error?: string; done?: boolean; usage?: object; metrics?: object; search?: object; mcpToolResponse?: object; generateImage?: object };
   // 暂时使用 unknown，在接收端进行类型检查

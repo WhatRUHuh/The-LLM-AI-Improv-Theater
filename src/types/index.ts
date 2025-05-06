@@ -64,7 +64,9 @@ export interface ChatConfig {
   script: Script;
   participatingCharacters: AICharacter[];
   userCharacterId: string | null;
-  aiConfigs: Record<string, { providerId: string; model: string }>;
+  // aiConfigs: Record<string, { providerId: string; model: string }>; // 旧的定义，注释掉以供参考
+  // aiConfigs 的键是 AICharacter 的 id，值是该角色使用的具体AI配置的关键信息
+  aiConfigs: Record<string, { configId: string; modelName: string; providerId: string; }>;
 }
 
 /**
@@ -89,4 +91,19 @@ export interface ChatPageStateSnapshot {
     chatSessionId: string; // 会话 ID 也需要保存
     isStreamingEnabled?: boolean; // 新增：是否启用流式输出
     // aiCharacter 和 userCharacter 可以从 chatConfig 恢复，无需单独保存
+}
+
+/**
+ * AI 服务配置
+ * 用于存储不同AI服务提供商的API密钥及相关配置
+ */
+export interface AIConfig {
+  id: string; // 唯一标识符，例如使用UUID生成
+  serviceProvider: 'google' | 'openai' | 'anthropic' | string; // 服务商名称
+  apiKey: string; // API密钥
+  name: string; // 用户为此配置指定的名称/标签，方便用户区分不同的key
+  model?: string; // 使用的模型名称，例如 'gpt-4', 'claude-2', 'gemini-pro' (可选)
+  baseURL?: string; // 服务商的API基础URL，用于支持自定义或代理 (可选)
+  isDefault?: boolean; // 是否为该服务商的默认配置 (可选)
+  lastUsed?: number; // 最后使用时间戳 (可选, 用于排序或清理)
 }

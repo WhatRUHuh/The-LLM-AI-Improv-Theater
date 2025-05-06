@@ -323,9 +323,18 @@ const SingleUserMultiAIInterfacePage: FC = () => {
             chatLogger.warn(`Cannot send message to ${aiChar.name}, missing config/prompt/session or init error.`);
             return; // 其他前置条件检查保持不变
         }
+
+        // --- 获取 AI 配置 ---
+        // 重点修复：aiConfigs 是一个数组，需要通过 aiChar 在 aiCharacters 数组中的索引来访问
+        // aiCharacters 已经排除了用户角色
+        // ChatConfig.aiConfigs 现在是 Record<string, { configId, modelName, providerId }>
+        // 其键是 AICharacter 的 id
         const aiConfig = chatConfig.aiConfigs[aiChar.id];
-        if (!aiConfig || !aiConfig.providerId || !aiConfig.model) {
-            message.error(`AI角色 (${aiChar.name}) 的配置不完整！`);
+
+        // 使用新的字段 providerId 和 modelName
+        if (!aiConfig || !aiConfig.providerId || !aiConfig.modelName) {
+            message.error(`AI角色 (${aiChar.name}) 的配置不完整 (服务商ID、配置ID或模型名称缺失)！`);
+            chatLogger.error(`AI config incomplete for ${aiChar.name}: providerId=${aiConfig?.providerId}, modelName=${aiConfig?.modelName}, configId=${aiConfig?.configId}`);
             setAILoadingState(prev => ({ ...prev, [aiChar.id]: false }));
             return;
         }
@@ -343,11 +352,14 @@ const SingleUserMultiAIInterfacePage: FC = () => {
             const combinedSystemPrompt = prePrompt + '\n\n' + postPrompt;
 
             const options: LLMChatOptions = {
-                model: aiConfig.model, messages: llmHistory,
-                systemPrompt: combinedSystemPrompt, stream: isStreamingEnabled,
+                model: aiConfig.modelName!, // 使用 modelName，上面已校验
+                messages: llmHistory,
+                systemPrompt: combinedSystemPrompt,
+                stream: isStreamingEnabled,
             };
 
-            chatLogger.info(`Sending request to ${aiChar.name} (${aiConfig.providerId}/${aiConfig.model}), Stream: ${isStreamingEnabled}`);
+            // 使用 providerId 和 modelName
+            chatLogger.info(`Sending request to ${aiChar.name} (${aiConfig.providerId}/${aiConfig.modelName}), Stream: ${isStreamingEnabled}`);
 
             if (isStreamingEnabled) {
                 const placeholderMessage: ChatMessage = {
@@ -355,7 +367,8 @@ const SingleUserMultiAIInterfacePage: FC = () => {
                 };
                 setMessages(prev => [...prev, placeholderMessage]);
                 // 传入 aiCharacterId 作为第三个参数
-                const startResult = await window.electronAPI.llmGenerateChatStream(aiConfig.providerId, options, aiChar.id);
+                // 修正：使用 configId 作为 IPC 调用的第一个参数
+                const startResult = await window.electronAPI.llmGenerateChatStream(aiConfig.configId, options, aiChar.id); // 修正：使用 configId
 
                 if (!startResult.success) {
                     message.error(`启动 AI (${aiChar.name}) 流式响应失败: ${startResult.error || '未知错误'}`);
@@ -368,7 +381,8 @@ const SingleUserMultiAIInterfacePage: FC = () => {
             } else {
                 // --- 非流式 ---
                 try {
-                    const result = await window.electronAPI.llmGenerateChat(aiConfig.providerId, options);
+                    // 修正：使用 configId 作为 IPC 调用的第一个参数
+                    const result = await window.electronAPI.llmGenerateChat(aiConfig.configId, options); // 修正：使用 configId
                     chatLogger.info(`Received non-stream response from ${aiChar.name}:`, result);
                     if (result.success && result.data?.content) {
                         const aiResponse: ChatMessage = {
@@ -487,7 +501,7 @@ const SingleUserMultiAIInterfacePage: FC = () => {
     }, [
         chatConfig, systemPrompts, chatSessionId, isStreamingEnabled,
         initializationError, /* aiResponseMode, */ setMessages, setAILoadingState, // 已移除 aiResponseMode
-        setRespondedInTurnAIIds, aiLoadingState // 添加依赖
+        setRespondedInTurnAIIds, aiLoadingState // aiCharacters 已移除，因为它在回调函数内部没有被直接使用
     ]);
 
 

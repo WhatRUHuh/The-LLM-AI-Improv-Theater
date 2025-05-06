@@ -1,6 +1,8 @@
 import OpenAI, { ClientOptions } from 'openai';
 // 导入 StreamChunk 类型
 import { BaseLLM, LLMResponse, LLMChatOptions, StreamChunk } from './BaseLLM';
+import type { AIConfig } from '../../src/types'; // 导入 AIConfig 类型
+import { logChatMessage } from '../utils/chatLoggerUtil'; // <-- 导入聊天日志工具
 
 /**
  * OpenAI 服务商的实现
@@ -8,8 +10,7 @@ import { BaseLLM, LLMResponse, LLMChatOptions, StreamChunk } from './BaseLLM';
 export class OpenAILLM extends BaseLLM {
   readonly providerId = 'openai';
   readonly providerName = 'OpenAI';
-  // OpenAI 的基础 URL，也可以从配置读取或允许用户修改
-  readonly baseApiUrl = 'https://api.openai.com/v1';
+  // baseApiUrl 将从 BaseLLM 的构造函数中通过 AIConfig 设置
 
   // 默认支持的模型列表 (可以根据需要更新)
   readonly defaultModels: string[] = [
@@ -21,27 +22,24 @@ export class OpenAILLM extends BaseLLM {
 
   private openai: OpenAI | null = null;
 
-  /**
-   * 重写 setApiKey 方法，在设置 key 时初始化 OpenAI 客户端
-   */
-  override setApiKey(apiKey: string | null): void {
-    super.setApiKey(apiKey);
-    if (apiKey) {
-      try {
-        const clientOptions: ClientOptions = {
-          apiKey: apiKey,
-          // baseURL: this.baseApiUrl, // 可以考虑允许用户配置 Base URL
-        };
+  constructor(config: AIConfig) {
+    super(config); // 调用基类构造函数，apiKey 和 baseApiUrl 会在那里被设置
+    try {
+      const clientOptions: ClientOptions = {
+        apiKey: this.apiKey, // 从基类获取 apiKey
+        baseURL: this.baseApiUrl, // 从基类获取 baseApiUrl
+      };
 
-        this.openai = new OpenAI(clientOptions);
-        console.log(`OpenAI 客户端已为提供商 ${this.providerId} 初始化完成`);
-      } catch (error) {
-         console.error(`为提供商 ${this.providerId} 初始化 OpenAI 客户端失败：`, error);
-         this.openai = null; // 初始化失败，重置客户端
+      // 如果 baseURL 未定义或为空字符串，从选项中移除，让 SDK 使用默认值
+      if (!clientOptions.baseURL) {
+        delete clientOptions.baseURL;
       }
-    } else {
-      this.openai = null; // API Key 移除，销毁客户端
-      console.log(`OpenAI 客户端已为提供商 ${this.providerId} 销毁`);
+
+      this.openai = new OpenAI(clientOptions);
+      console.log(`[OpenAILLM] OpenAI 客户端已使用配置 (ID: ${this.configId}, Name: ${this.configName}) 初始化完成。Base URL: ${clientOptions.baseURL || '默认 OpenAI API'}`);
+    } catch (error) {
+       console.error(`[OpenAILLM] 使用配置 (ID: ${this.configId}, Name: ${this.configName}) 初始化 OpenAI 客户端失败：`, error);
+       this.openai = null; // 初始化失败，重置客户端
     }
   }
 
@@ -57,6 +55,9 @@ export class OpenAILLM extends BaseLLM {
     //    return { content: '', error: `模型 ${options.model} 不可用或不受支持` };
     // }
 
+    const aiConfigLogInfo = { id: this.configId, name: this.configName, serviceProvider: this.providerId };
+    const sessionIdentifier = `openai-non-stream-${Date.now()}`;
+
     try {
       // 准备 OpenAI API 请求参数
       const params: OpenAI.Chat.ChatCompletionCreateParams = {
@@ -64,28 +65,21 @@ export class OpenAILLM extends BaseLLM {
         messages: options.messages,
         temperature: options.temperature ?? 0.7, // 默认温度
         max_tokens: options.maxTokens, // 如果未提供，则由 OpenAI 决定
-        stream: false, // 暂不支持流式响应
-        // 可以根据需要添加其他参数，如 top_p, frequency_penalty 等
+        stream: false,
       };
 
-      // 如果有系统提示，添加到消息列表开头 (某些模型可能不支持 system role)
       if (options.systemPrompt) {
-        // 确保 messages 数组存在
         if (!params.messages) params.messages = [];
-        // 检查是否已有 system 消息，避免重复添加
         if (!params.messages.some(m => m.role === 'system')) {
           params.messages.unshift({ role: 'system', content: options.systemPrompt });
         } else {
-          // 如果已有 system 消息，可以选择替换或忽略新的，这里选择忽略
-          console.warn('已存在 system 提示，忽略新的 systemPrompt 选项。');
+          logChatMessage(sessionIdentifier, 'SYSTEM_ACTION', this.providerId, 'System Prompt Warning', '已存在 system 提示，忽略新的 systemPrompt 选项。', aiConfigLogInfo);
         }
       }
 
-      console.log(`正在向模型 ${options.model} 发送请求，参数:`, JSON.stringify(params, null, 2));
-
+      logChatMessage(sessionIdentifier, 'TO_AI', this.providerId, 'Request Parameters', params, aiConfigLogInfo);
       const completion: OpenAI.Chat.ChatCompletion = await this.openai.chat.completions.create(params);
-
-      console.log('已接收完成结果:', JSON.stringify(completion, null, 2));
+      logChatMessage(sessionIdentifier, 'FROM_AI', this.providerId, 'API Response', completion, aiConfigLogInfo);
 
       const content = completion.choices[0]?.message?.content ?? '';
       const usage = completion.usage;
@@ -102,7 +96,9 @@ export class OpenAILLM extends BaseLLM {
         // rawResponse: completion, // 移除原始响应
       };
     } catch (error: unknown) {
-      console.error(`模型 ${options.model} 聊天完成时出错：`, error);
+      const errorMessage = `模型 ${options.model} 聊天完成时出错：${error instanceof Error ? error.message : String(error)}`;
+      logChatMessage(sessionIdentifier, 'FROM_AI', this.providerId, 'Error', { error: error instanceof Error ? error.stack : String(error), params: options }, aiConfigLogInfo);
+      console.error(`[OpenAILLM] ${errorMessage}`);
       let detailedError = '与 OpenAI API 通信时发生未知错误';
       if (error instanceof Error) {
         detailedError = error.message;
@@ -145,34 +141,34 @@ export class OpenAILLM extends BaseLLM {
       return;
     }
 
+    const aiConfigLogInfo = { id: this.configId, name: this.configName, serviceProvider: this.providerId };
+    const sessionIdentifier = `openai-stream-${Date.now()}`;
+
     try {
-      // 准备 OpenAI API 请求参数
       const params: OpenAI.Chat.ChatCompletionCreateParams = {
         model: options.model,
-        messages: options.messages, 
+        messages: options.messages,
         temperature: options.temperature ?? 0.7,
         max_tokens: options.maxTokens,
-        stream: true, // <-- 启用流式响应
+        stream: true,
       };
 
-      // 处理 systemPrompt
       if (options.systemPrompt) {
         if (!params.messages) params.messages = [];
         if (!params.messages.some(m => m.role === 'system')) {
           params.messages.unshift({ role: 'system', content: options.systemPrompt });
         } else {
-          console.warn('【OpenAI 流】已存在 system 提示，忽略新的 systemPrompt 选项。');
+          logChatMessage(sessionIdentifier, 'SYSTEM_ACTION', this.providerId, 'System Prompt Warning (Stream)', '已存在 system 提示，忽略新的 systemPrompt 选项。', aiConfigLogInfo);
         }
       }
 
-      console.log(`【OpenAI 流】正在向模型 ${options.model} 发送请求`);
-
+      logChatMessage(sessionIdentifier, 'TO_AI', this.providerId, 'Stream Request Parameters', params, aiConfigLogInfo);
       const stream = await this.openai.chat.completions.create(params);
 
       let finishReason: string | null = null;
-      // let accumulatedUsage: OpenAI.CompletionUsage | undefined = undefined; // 移除未使用的变量
 
       for await (const chunk of stream) {
+        logChatMessage(sessionIdentifier, 'FROM_AI', this.providerId, 'Stream Raw Chunk', chunk, aiConfigLogInfo);
         const content = chunk.choices[0]?.delta?.content;
         const currentFinishReason = chunk.choices[0]?.finish_reason;
 
@@ -182,15 +178,16 @@ export class OpenAILLM extends BaseLLM {
 
         if (currentFinishReason) {
           finishReason = currentFinishReason;
-          console.log(`【OpenAI 流】接收到结束原因: ${finishReason}`);
+          logChatMessage(sessionIdentifier, 'FROM_AI', this.providerId, 'Stream Finish Reason Received', { finishReason }, aiConfigLogInfo);
         }
       }
 
-      console.log(`【OpenAI 流】模型 ${options.model} 的流已结束。结束原因: ${finishReason}`);
-      // 流结束后发送 done 信号
+      logChatMessage(sessionIdentifier, 'FROM_AI', this.providerId, 'Stream Ended', { model: options.model, finishReason }, aiConfigLogInfo);
       yield { done: true, modelUsed: options.model };
     } catch (error: unknown) {
-      console.error(`模型 ${options.model} 流式聊天完成时出错：`, error);
+      const errorMessage = `模型 ${options.model} 流式聊天完成时出错：${error instanceof Error ? error.message : String(error)}`;
+      logChatMessage(sessionIdentifier, 'FROM_AI', this.providerId, 'Stream Error', { error: error instanceof Error ? error.stack : String(error), params: options }, aiConfigLogInfo);
+      console.error(`[OpenAILLM Stream] ${errorMessage}`);
       let detailedError = '与 OpenAI API 通信时发生未知错误';
       if (error instanceof Error) {
         detailedError = error.message;

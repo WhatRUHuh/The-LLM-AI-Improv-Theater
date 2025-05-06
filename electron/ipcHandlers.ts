@@ -5,10 +5,11 @@ import { readStore, writeStore } from './storage/jsonStore';
 // 导入 StreamChunk 类型定义
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { BaseLLM, LLMChatOptions, LLMResponse, StreamChunk } from './llm/BaseLLM';
-import { llmServiceManager } from './llm/LLMServiceManager';
+import { llmServiceManager, LLMServiceManager } from './llm/LLMServiceManager'; // <--- 导入 LLMServiceManager 类
 import { proxyManager, ProxyConfig } from './ProxyManager';
 import { getSystemProxy } from 'os-proxy-config';
-import type { AICharacter, Script } from '../src/types';
+import type { AICharacter, Script, AIConfig } from '../src/types'; // 导入 AIConfig 类型
+import { getAIConfigById as getAIConfigFromStore } from './storage/jsonStore'; // <--- 添加导入
 // 导入聊天快照类型
 import type { ChatPageStateSnapshot } from '../src/types';
 // 导入日志工具和编码工具
@@ -19,7 +20,8 @@ import { UTF8_OPTIONS } from './utils/encoding';
 const API_KEYS_FILE = 'apiKeys.json';
 const CUSTOM_MODELS_FILE = 'customModels.json';
 const PROXY_CONFIG_FILE = 'proxyConfig.json';
-const KNOWN_CONFIG_FILES = new Set([API_KEYS_FILE, CUSTOM_MODELS_FILE, PROXY_CONFIG_FILE]);
+const AI_CONFIGURATIONS_FILE = 'aiConfigurations.json'; // 新增 AI 配置文件名
+const KNOWN_CONFIG_FILES = new Set([API_KEYS_FILE, CUSTOM_MODELS_FILE, PROXY_CONFIG_FILE, AI_CONFIGURATIONS_FILE]); // 添加到已知配置文件
 
 const STORAGE_DIR_NAME = 'TheLLMAIImprovTheaterData';
 const CHARACTERS_DIR_NAME = 'characters';
@@ -462,49 +464,54 @@ export function registerScriptHandlers(): void {
  */
 export function registerLLMServiceHandlers(getMainWindow: () => BrowserWindow | null): void { // <-- 接收一个获取主窗口的函数
   // 获取所有服务商信息
-  ipcMain.handle('llm-get-services', async () => {
-    console.log('[IPC 主进程] 收到 llm-get-services 请求');
+  // 更新：将 'llm-get-services' 重命名为 'get-all-ai-configs'
+  ipcMain.handle('get-all-ai-configs', async () => {
+    logger.info('[IPC 主进程] 收到 \'get-all-ai-configs\' 请求');
     try {
-      const services = llmServiceManager.getAllServices().map(service => ({
-        providerId: service.providerId,
-        providerName: service.providerName,
-        defaultModels: service.defaultModels,
-      }));
-      return { success: true, data: services };
+      // 逻辑保持不变：返回所有已配置的 AIConfig 对象
+      const aiConfigs = await llmServiceManager.getAllAIConfigs();
+      logger.info(`[IPC 主进程] 'get-all-ai-configs': 返回 ${aiConfigs.length} 个 AI 配置。`);
+      return { success: true, data: aiConfigs }; // 前端将直接使用 AIConfig[]
     } catch (error: unknown) {
-      console.error('[IPC 主进程] 处理 llm-get-services 时发生错误:', error);
-      const message = error instanceof Error ? error.message : '获取 LLM 服务列表时出错';
+      logger.error('[IPC 主进程] 处理 \'get-all-ai-configs\' 时发生错误:', error);
+      const message = error instanceof Error ? error.message : '获取 AI 配置列表时出错';
       return { success: false, error: message };
     }
   });
 
-  // 设置 API Key
-  ipcMain.handle('llm-set-api-key', async (event, providerId: string, apiKey: string | null) => {
-     console.log(`[IPC 主进程] 收到 llm-set-api-key 请求，服务商: ${providerId}`);
+  // 设置 API Key (此功能已废弃，API Key 通过 AIConfig 管理)
+  ipcMain.handle('llm-set-api-key', async () => { // 彻底移除未使用的参数
+     logger.warn(`[IPC 主进程] 'llm-set-api-key' 功能已废弃。请通过 AI 配置页面管理 API Keys。`);
+     return { success: false, error: '此功能已废弃，请在AI配置页面管理API Keys。' };
+     /* 旧逻辑已移除:
      try {
-       const managerSuccess = llmServiceManager.setApiKeyForService(providerId, apiKey);
-       if (!managerSuccess) {
-         return { success: false, error: `未找到服务商: ${providerId}` };
-       }
-       const currentKeys = await readStore<Record<string, string | null>>(API_KEYS_FILE, {});
-       if (apiKey && apiKey.trim() !== '') {
-         currentKeys[providerId] = apiKey;
-       } else {
-         delete currentKeys[providerId];
-       }
-       await writeStore(API_KEYS_FILE, currentKeys);
-       console.log(`[IPC 主进程] API 密钥 ${providerId} 设置并持久化成功。`);
-       return { success: true };
+       // llmServiceManager.setApiKeyForService 现在会抛出错误
+       // const managerSuccess = llmServiceManager.setApiKeyForService(providerId, apiKey);
+       // if (!managerSuccess) {
+       //   return { success: false, error: `未找到服务商: ${providerId}` };
+       // }
+       // const currentKeys = await readStore<Record<string, string | null>>(API_KEYS_FILE, {});
+       // if (apiKey && apiKey.trim() !== '') {
+       //   currentKeys[providerId] = apiKey;
+       // } else {
+       //   delete currentKeys[providerId];
+       // }
+       // await writeStore(API_KEYS_FILE, currentKeys);
+       // console.log(`[IPC 主进程] API 密钥 ${providerId} 设置并持久化成功。`);
+       // return { success: true };
      } catch (error: unknown) {
-       console.error(`[IPC 主进程] 处理 llm-set-api-key 请求 ${providerId} 时发生错误:`, error);
-       const message = error instanceof Error ? error.message : '设置并保存 API Key 时出错';
-       return { success: false, error: message };
+       // console.error(`[IPC 主进程] 处理 llm-set-api-key 请求 ${providerId} 时发生错误:`, error);
+       // const message = error instanceof Error ? error.message : '设置并保存 API Key 时出错';
+       // return { success: false, error: message };
      }
+     */
   });
 
-  // 获取已保存的 API Keys
+  // 获取已保存的 API Keys (此功能已废弃，API Key 信息通过 AIConfig 获取)
   ipcMain.handle('llm-get-saved-keys', async () => {
-    console.log('[IPC 主进程] 收到 llm-get-saved-keys 请求');
+    logger.warn(`[IPC 主进程] 'llm-get-saved-keys' 功能已废弃。请通过获取 AI 配置列表来查看相关信息。`);
+    return { success: false, error: '此功能已废弃，API Key 信息请通过 AI 配置获取。' };
+    /* 旧逻辑已移除:
     try {
       const savedKeys = await readStore<Record<string, string | null>>(API_KEYS_FILE, {});
       return { success: true, data: savedKeys };
@@ -513,48 +520,86 @@ export function registerLLMServiceHandlers(getMainWindow: () => BrowserWindow | 
       const message = error instanceof Error ? error.message : '读取已保存的 API Keys 时出错';
       return { success: false, error: message };
     }
+    */
   });
 
-   // 获取可用模型
-   ipcMain.handle('llm-get-available-models', async (event, providerId: string) => {
-     console.log(`[IPC 主进程] 收到 llm-get-available-models 请求，服务商: ${providerId}`);
-     const service = llmServiceManager.getService(providerId);
-     if (!service) {
-       return { success: false, error: `未找到服务商: ${providerId}` };
+   // 获取可用模型 (基于 configId)
+   ipcMain.handle('llm-get-available-models', async (event, configId: string) => {
+     logger.info(`[IPC 主进程] 收到 llm-get-available-models 请求，Config ID: ${configId}`);
+     if (!configId) {
+       return { success: false, error: '未提供 AI 配置 ID (configId)。' };
      }
+
      try {
-       const allCustomModels = await readStore<CustomModelsStore>(CUSTOM_MODELS_FILE, {});
-       const customModels = allCustomModels[providerId] || [];
-       const availableModels = service.getAvailableModels(customModels);
+       // 1. 获取 AIConfig 以得到 serviceProvider 用于读取旧的 customModels
+       const aiConfig = await getAIConfigFromStore(configId);
+       if (!aiConfig) {
+         logger.error(`[IPC 主进程] llm-get-available-models: 未找到 Config ID 为 "${configId}" 的 AI 配置。`);
+         return { success: false, error: `未找到 AI 配置 ID: ${configId}` };
+       }
+       const providerId = aiConfig.serviceProvider; // 这就是旧的 providerId
+
+       // 2. 获取该服务商的自定义模型 (从旧的 customModels.json)
+       let customProviderModels: string[] = [];
+       try {
+         const allCustomModels = await readStore<CustomModelsStore>(CUSTOM_MODELS_FILE, {});
+         customProviderModels = allCustomModels[providerId] || [];
+         logger.info(`[IPC 主进程] llm-get-available-models: 为服务商 ${providerId} 获取到 ${customProviderModels.length} 个自定义模型。`);
+       } catch (readError) {
+         logger.warn(`[IPC 主进程] llm-get-available-models: 读取自定义模型文件 ${CUSTOM_MODELS_FILE} 失败:`, readError);
+         // 读取失败不中断，当作没有自定义模型处理
+       }
+
+       // 3. 获取服务实例的默认可用模型 (通过 LLMServiceManager)
+       // llmServiceManager.getAvailableModels(configId) 内部会处理服务实例的获取和调用其 getAvailableModels()
+       // 注意：当前 LLMServiceManager.getAvailableModels 返回的是服务自身的 defaultModels，不包含自定义。
+       // 我们需要的是服务实例上的 getAvailableModels() 方法，它能接受自定义模型列表。
+       const service = await llmServiceManager.getServiceInstanceByConfigId(configId);
+       if (!service) {
+         logger.error(`[IPC 主进程] llm-get-available-models: 无法为 Config ID "${configId}" 获取服务实例。`);
+         return { success: false, error: `无法为配置 ID ${configId} 初始化服务。` };
+       }
+       
+       // 4. 合并模型列表
+       // BaseLLM 的 getAvailableModels 方法会合并 defaultModels 和传入的 customModels
+       const availableModels = service.getAvailableModels(customProviderModels);
+       
+       logger.info(`[IPC 主进程] llm-get-available-models: Config ID ${configId} (服务商 ${providerId}) 共找到 ${availableModels.length} 个可用模型。`);
        return { success: true, data: availableModels };
+
      } catch (error: unknown) {
-       console.error(`[IPC 主进程] 处理 llm-get-available-models 请求 ${providerId} 时发生错误:`, error);
-       const message = error instanceof Error ? error.message : '获取可用模型时出错';
+       logger.error(`[IPC 主进程] 处理 llm-get-available-models 请求 (Config ID: ${configId}) 时发生错误:`, error);
+       const message = error instanceof Error ? error.message : '获取可用模型列表时发生未知错误';
        return { success: false, error: message };
      }
    });
 
-   // 处理聊天生成请求 (非流式)
-   ipcMain.handle('llm-generate-chat', async (event, providerId: string, options: LLMChatOptions): Promise<{ success: boolean; data?: LLMResponse; error?: string }> => {
-     console.log(`[IPC 主进程] 收到 llm-generate-chat 请求，服务商: ${providerId}`);
-     const service = llmServiceManager.getService(providerId);
+   // 处理聊天生成请求 (非流式, 基于 configId)
+   ipcMain.handle('llm-generate-chat', async (event, configId: string, options: LLMChatOptions): Promise<{ success: boolean; data?: LLMResponse; error?: string }> => {
+     if (!configId) {
+       logger.error('[IPC 主进程] llm-generate-chat: 未提供 AI 配置 ID (configId)。');
+       return { success: false, error: '未提供 AI 配置 ID (configId)。' };
+     }
+
+     const service = await llmServiceManager.getServiceInstanceByConfigId(configId);
      if (!service) {
-       return { success: false, error: `未找到服务商: ${providerId}` };
+       logger.error(`[IPC 主进程] llm-generate-chat: 无法为 Config ID "${configId}" 获取服务实例。`);
+       return { success: false, error: `无法为配置 ID ${configId} 初始化服务。` };
      }
-     if (!service.getApiKey()) {
-        return { success: false, error: `服务商 ${providerId} 的 API Key 尚未设置` };
-     }
+     
+     // 使用 service 上的属性来丰富日志
+     logger.info(`[IPC 主进程] 收到 llm-generate-chat 请求，使用配置: ${service.configName} (ID: ${service.configId}, 提供商: ${service.providerId})`);
+
      try {
-       // 确保 options 中 stream 为 false 或未定义
        options.stream = false;
        const result: LLMResponse = await service.generateChatCompletion(options);
-       console.log(`[IPC 主进程] 聊天完成结果 ${providerId}:`, result.error ? result.error : '成功');
+       logger.info(`[IPC 主进程] 非流式聊天完成 (配置: ${service.configName} [${service.configId}]) - ${result.error ? `错误: ${result.error}` : '成功'}`);
        if (result.error) {
           return { success: false, error: result.error, data: result };
        }
        return { success: true, data: result };
      } catch (error: unknown) {
-       console.error(`[IPC 主进程] 处理 llm-generate-chat 请求 ${providerId} 时发生错误:`, error);
+       logger.error(`[IPC 主进程] 处理 llm-generate-chat (配置: ${service.configName} [${service.configId}]) 时发生错误:`, error);
        const message = error instanceof Error ? error.message : '调用聊天生成时发生未知错误';
        return { success: false, error: message };
      }
@@ -563,61 +608,55 @@ export function registerLLMServiceHandlers(getMainWindow: () => BrowserWindow | 
    // --- 新增：处理流式聊天生成请求 ---
    // --- 新增：处理流式聊天生成请求 (加入 sourceId/characterId) ---
    // IMPORTANT: The third argument `characterId` is ADDED here. Frontend needs to pass it!
-   ipcMain.handle('llm-generate-chat-stream', async (event, providerId: string, options: LLMChatOptions, characterId?: string): Promise<{ success: boolean; error?: string }> => {
-     console.log(`[IPC 主进程] 收到 llm-generate-chat-stream 请求，服务商: ${providerId}, 角色ID: ${characterId ?? '未提供'}`);
-     const mainWindow = getMainWindow(); // 获取主窗口实例
+   ipcMain.handle('llm-generate-chat-stream', async (event, configId: string, options: LLMChatOptions, characterId?: string): Promise<{ success: boolean; error?: string }> => {
+     if (!configId) {
+       logger.error('[IPC 主进程] llm-generate-chat-stream: 未提供 AI 配置 ID (configId)。');
+       return { success: false, error: '未提供 AI 配置 ID (configId)。' };
+     }
+
+     const mainWindow = getMainWindow();
      if (!mainWindow) {
-       console.error('[IPC 主进程] 主窗口不可用，无法发送流式数据。');
+       logger.error('[IPC 主进程] llm-generate-chat-stream: 主窗口不可用，无法发送流式数据。');
        return { success: false, error: '无法发送流式数据：主窗口不存在。' };
      }
-     const webContents = mainWindow.webContents; // 获取 webContents
+     const webContents = mainWindow.webContents;
 
-     const service = llmServiceManager.getService(providerId);
+     const service = await llmServiceManager.getServiceInstanceByConfigId(configId);
      if (!service) {
-       return { success: false, error: `未找到服务商: ${providerId}` };
-     }
-     if (!service.getApiKey()) {
-       return { success: false, error: `服务商 ${providerId} 的 API Key 尚未设置` };
+       logger.error(`[IPC 主进程] llm-generate-chat-stream: 无法为 Config ID "${configId}" 获取服务实例。`);
+       return { success: false, error: `无法为配置 ID ${configId} 初始化服务。` };
      }
 
-     // 确保 options 中 stream 为 true
+     logger.info(`[IPC 主进程] 收到 llm-generate-chat-stream 请求，使用配置: ${service.configName} (ID: ${service.configId}, 提供商: ${service.providerId}), 角色ID: ${characterId ?? '未提供'}`);
      options.stream = true;
 
      try {
-       console.log(`[IPC 主进程] 开始为 ${providerId} 启动流式输出...`);
-       // 检查 service 是否有 generateChatCompletionStream 方法
+       logger.info(`[IPC 主进程] 开始为配置 ${service.configName} [${service.configId}] (角色ID: ${characterId ?? 'N/A'}) 启动流式输出...`);
        if (typeof service.generateChatCompletionStream !== 'function') {
-           console.error(`[IPC 主进程] 服务商 ${providerId} 不支持流式输出。`);
-           return { success: false, error: `服务商 ${providerId} 不支持流式输出。` };
+           logger.error(`[IPC 主进程] 配置 ${service.configName} [${service.configId}] 对应的服务不支持流式输出。`);
+           return { success: false, error: `配置 ${service.configName} [${service.configId}] 对应的服务不支持流式输出。` };
        }
        const stream = service.generateChatCompletionStream(options);
        for await (const chunk of stream) {
-         // console.log('[IPC Main] Sending stream chunk:', chunk); // 调试时可以取消注释
          if (webContents.isDestroyed()) {
-            console.warn('[IPC 主进程] WebContents 已销毁，停止发送流式数据。');
-            // 可能需要通知 LLM 服务停止生成 (如果支持)
-            break;
+            logger.warn('[IPC 主进程] WebContents 已销毁，停止为角色ID ${characterId ?? "N/A"} 发送流式数据。');
+           break;
          }
-         // 打包 chunk 和 sourceId (characterId) 一起发送
          webContents.send('llm-stream-chunk', { chunk, sourceId: characterId });
        }
-       console.log(`[IPC 主进程] ${providerId} 的流式输出已完成。`);
-       // 发送完成信号 (即使 stream 实现内部已发送 done:true，这里再发一次确保)
+       logger.info(`[IPC 主进程] 配置 ${service.configName} [${service.configId}] (角色ID: ${characterId ?? 'N/A'}) 的流式输出已完成。`);
        if (!webContents.isDestroyed()) {
-           // 发送完成信号，也带上 sourceId，方便前端识别是哪个流结束了
            webContents.send('llm-stream-chunk', { chunk: { done: true }, sourceId: characterId });
        }
-       return { success: true }; // 表示启动流式请求成功
+       return { success: true };
 
      } catch (error: unknown) {
-       console.error(`[IPC 主进程] 处理 llm-generate-chat-stream 请求 ${providerId} 时发生错误:`, error);
+       logger.error(`[IPC 主进程] 处理 llm-generate-chat-stream (配置: ${service.configName} [${service.configId}], 角色ID: ${characterId ?? 'N/A'}) 时发生错误:`, error);
        const message = error instanceof Error ? error.message : '调用流式聊天生成时发生未知错误';
-       // 发送错误信号给前端
        if (!webContents.isDestroyed()) {
-           // 发送错误信号，也带上 sourceId
            webContents.send('llm-stream-chunk', { chunk: { error: message, done: true }, sourceId: characterId });
        }
-       return { success: false, error: message }; // 表示启动流式请求失败
+       return { success: false, error: message };
      }
    });
 
@@ -904,7 +943,134 @@ export function registerAllIpcHandlers(getMainWindow: () => BrowserWindow | null
   registerChatSessionHandlers();
   registerLLMServiceHandlers(getMainWindow); // <-- 传递 getMainWindow
   registerProxyHandlers();
+  registerAIConfigHandlers(); // 新增：注册 AI 配置处理程序
   console.log('[IPC 管理] 所有 IPC 处理程序已注册。');
 }
+
+// --- 新增 AI 配置处理程序 ---
+/**
+ * 注册与 AI 配置相关的 IPC 处理程序
+ */
+export function registerAIConfigHandlers(): void {
+  const aiConfigFile = AI_CONFIGURATIONS_FILE;
+
+  // 获取指定服务商的所有 AI 配置
+  ipcMain.handle('get-ai-configs-by-provider', async (event, serviceProvider: string) => {
+    logger.info(`[IPC AIConfig] 收到 'get-ai-configs-by-provider' 请求，服务商: ${serviceProvider}`);
+    try {
+      const allConfigs = await readStore<AIConfig[]>(aiConfigFile, []);
+      const providerConfigs = allConfigs.filter(config => config.serviceProvider === serviceProvider);
+      logger.info(`[IPC AIConfig] 为服务商 ${serviceProvider} 找到 ${providerConfigs.length} 个配置。`);
+      return { success: true, data: providerConfigs };
+    } catch (error: unknown) {
+      logger.error(`[IPC AIConfig] 处理 'get-ai-configs-by-provider' 请求 ${serviceProvider} 时发生错误:`, error);
+      const message = error instanceof Error ? error.message : '获取 AI 配置列表时发生未知错误';
+      return { success: false, error: message };
+    }
+  });
+
+  // 添加新的 AI 配置
+  ipcMain.handle('add-ai-config', async (event, configData: Omit<AIConfig, 'id'>) => {
+    logger.info(`[IPC AIConfig] 收到 'add-ai-config' 请求，配置名称: ${configData.name}`);
+    try {
+      const allConfigs = await readStore<AIConfig[]>(aiConfigFile, []);
+      // 简单的 ID 生成：时间戳 + 随机数 (在实际应用中可能需要更健壮的 UUID)
+      const newId = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+      const newConfig: AIConfig = { ...configData, id: newId };
+      allConfigs.push(newConfig);
+      await writeStore(aiConfigFile, allConfigs);
+      logger.info(`[IPC AIConfig] AI 配置 '${configData.name}' (ID: ${newId}) 已添加并保存。`);
+      return { success: true, data: newConfig };
+    } catch (error: unknown) {
+      logger.error(`[IPC AIConfig] 处理 'add-ai-config' 请求时发生错误:`, error);
+      const message = error instanceof Error ? error.message : '添加 AI 配置时发生未知错误';
+      return { success: false, error: message };
+    }
+  });
+
+  // 更新已有的 AI 配置
+  ipcMain.handle('update-ai-config', async (event, configId: string, updates: Partial<Omit<AIConfig, 'id'>>) => {
+    logger.info(`[IPC AIConfig] 收到 'update-ai-config' 请求，配置 ID: ${configId}`);
+    try {
+      const allConfigs = await readStore<AIConfig[]>(aiConfigFile, []);
+      const configIndex = allConfigs.findIndex(config => config.id === configId);
+      if (configIndex === -1) {
+        logger.warn(`[IPC AIConfig] 未找到要更新的 AI 配置，ID: ${configId}`);
+        return { success: false, error: `未找到配置 ID: ${configId}` };
+      }
+      const updatedConfig = { ...allConfigs[configIndex], ...updates };
+      allConfigs[configIndex] = updatedConfig;
+      await writeStore(aiConfigFile, allConfigs);
+      logger.info(`[IPC AIConfig] AI 配置 ID: ${configId} 已更新并保存。`);
+      return { success: true, data: updatedConfig };
+    } catch (error: unknown) {
+      logger.error(`[IPC AIConfig] 处理 'update-ai-config' 请求 ${configId} 时发生错误:`, error);
+      const message = error instanceof Error ? error.message : '更新 AI 配置时发生未知错误';
+      return { success: false, error: message };
+    }
+  });
+
+  // 删除 AI 配置
+  ipcMain.handle('delete-ai-config', async (event, configId: string) => {
+    logger.info(`[IPC AIConfig] 收到 'delete-ai-config' 请求，配置 ID: ${configId}`);
+    try {
+      let allConfigs = await readStore<AIConfig[]>(aiConfigFile, []);
+      const initialLength = allConfigs.length;
+      allConfigs = allConfigs.filter(config => config.id !== configId);
+      if (allConfigs.length === initialLength) {
+        logger.warn(`[IPC AIConfig] 未找到要删除的 AI 配置，ID: ${configId}`);
+        // 即使未找到也返回成功，保持幂等性
+        return { success: true };
+      }
+      await writeStore(aiConfigFile, allConfigs);
+      logger.info(`[IPC AIConfig] AI 配置 ID: ${configId} 已删除。`);
+      return { success: true };
+    } catch (error: unknown) {
+      logger.error(`[IPC AIConfig] 处理 'delete-ai-config' 请求 ${configId} 时发生错误:`, error);
+      const message = error instanceof Error ? error.message : '删除 AI 配置时发生未知错误';
+      return { success: false, error: message };
+    }
+  });
+
+  logger.info('已注册 AI 配置 IPC 处理程序。');
+
+  // 新增：根据 ID 获取单个 AI 配置
+  ipcMain.handle('get-ai-config-by-id', async (event, configId: string) => {
+    logger.info(`[IPC AIConfig] 收到 'get-ai-config-by-id' 请求，配置 ID: ${configId}`);
+    if (!configId) {
+      return { success: false, error: '未提供 AI 配置 ID' };
+    }
+    try {
+      const config = await getAIConfigFromStore(configId); // 使用已导入的函数
+      if (config) {
+        logger.info(`[IPC AIConfig] 成功找到 AI 配置 ID: ${configId}`);
+        return { success: true, data: config };
+      } else {
+        logger.warn(`[IPC AIConfig] 未找到 AI 配置 ID: ${configId}`);
+        return { success: false, error: `未找到具有 ID ${configId} 的 AI 配置` };
+      }
+    } catch (error: unknown) {
+      logger.error(`[IPC AIConfig] 处理 'get-ai-config-by-id' 请求 ${configId} 时发生错误:`, error);
+      const message = error instanceof Error ? error.message : '获取 AI 配置时发生未知错误';
+      return { success: false, error: message };
+    }
+  });
+
+  // 新增：获取支持的服务商列表
+  ipcMain.handle('get-supported-service-providers', async () => {
+    logger.info(`[IPC AIConfig] 收到 'get-supported-service-providers' 请求`);
+    try {
+      // 直接调用 LLMServiceManager 的静态方法
+      const providers = LLMServiceManager.getSupportedServiceProviders();
+      logger.info(`[IPC AIConfig] 成功获取支持的服务商列表: ${providers.join(', ')}`);
+      return { success: true, data: providers };
+    } catch (error: unknown) {
+      logger.error(`[IPC AIConfig] 处理 'get-supported-service-providers' 请求时发生错误:`, error);
+      const message = error instanceof Error ? error.message : '获取支持的服务商列表时发生未知错误';
+      return { success: false, error: message };
+    }
+  });
+}
+
 
 // 注意：现在应该在 main.ts 中只调用 registerAllIpcHandlers() 函数
