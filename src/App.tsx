@@ -85,7 +85,7 @@ const AppLayout: React.FC = () => {
 
   return (
     <Layout style={{ height: '100vh', overflow: 'hidden' }}> {/* 1. 固定外层高度，禁止整体滚动 */}
-      <Sider width={200} style={{ background: colorBgContainer, overflow: 'auto' }}> {/* 2. Sider 背景色 & 允许自身滚动 (以防万一) */}
+      <Sider width={200} style={{ display: 'flex', flexDirection: 'column', background: colorBgContainer, overflow: 'auto' }}> {/* 2. Sider 背景色 & 允许自身滚动 (以防万一), 添加 Flex 布局 */}
         <div
           style={{
             height: 32,
@@ -104,10 +104,15 @@ const AppLayout: React.FC = () => {
         <Menu
           mode="inline"
           selectedKeys={getSelectedKeys()}
-          style={{ height: 'calc(100% - 64px)', borderRight: 0 }}
+          style={{ flexGrow: 1, borderRight: 0 }} /* 使用 flexGrow 替代固定高度计算 */
           items={menuItems}
           onClick={handleMenuClick}
         />
+        <div style={{ padding: '10px 16px', textAlign: 'left', fontSize: '12px', color: 'rgba(0, 0, 0, 0.65)', borderTop: '1px solid rgba(0, 0, 0, 0.06)' }}>
+          <p style={{ margin: '2px 0' }}>作者：你算啥呢呀？</p>
+          <p style={{ margin: '2px 0' }}>项目地址：<a href="https://github.com/WhatRUHuh/The-LLM-AI-Improv-Theater" target="_blank" rel="noopener noreferrer" style={{ color: 'rgba(0, 0, 0, 0.85)' }}>https://github.com/WhatRUHuh/The-LLM-AI-Improv-Theater</a></p>
+          <p style={{ margin: '2px 0' }}>本项目免费开源，如果你花钱买了说明被坑了</p>
+        </div>
       </Sider>
       <Layout> {/* 移除 paddingLeft，变成简单容器 */}
         <Content> {/* 移除所有样式，变成简单容器 */}

@@ -166,7 +166,7 @@ function createMenu() {
          {
            label: '了解更多',
            click: async () => {
-             await shell.openExternal('https://electronjs.org');
+             await shell.openExternal('https://github.com/WhatRUHuh/The-LLM-AI-Improv-Theater');
            }
          }
        ]
