@@ -110,6 +110,7 @@ The-LLM-AI-Improv-Theater/
     npm run electron:dev
     ```
     此命令会首先使用 Vite 构建前端代码，然后启动 Electron 应用。修改代码后会自动刷新。
+此外，在开发模式下，当 `npm run electron:dev` 成功启动后，您通常也可以在浏览器中直接访问 Vite 开发服务器。其地址（默认为 `http://localhost:5173/`，但具体端口请以终端输出为准）会显示在终端日志中。通过浏览器访问前端界面有助于进行快速预览和调试。请注意，在此浏览器预览模式下，所有依赖 Electron Node.js 环境及主进程API的功能（例如本地文件读写、窗口操作、自定义IPC通讯等）将无法正常工作。
 
 3.  **清理并重新启动开发模式**:
     ```bash
@@ -150,6 +151,17 @@ The-LLM-AI-Improv-Theater/
 *   **持续性能优化**：不断优化应用性能，降低资源消耗，提升流畅度。
 
 如果您有任何好的想法或建议，欢迎通过 [Issues](https://github.com/WhatRUHuh/The-LLM-AI-Improv-Theater/issues) 或其他渠道告诉我们！
+
+---
+## 💾 数据存储 (Data Storage)
+
+本应用程序的用户特定数据（例如 AI 服务配置、代理设置、角色、剧本、聊天记录等）以及日志文件通常存储在您的操作系统的标准用户数据目录下。具体路径因操作系统而异：
+
+*   **Windows**: `%APPDATA%\the-llm-ai-improv-theate\` (通常是 `C:\Users\<您的用户名>\AppData\Roaming\the-llm-ai-improv-theate\`)
+*   **macOS**: `~/Library/Application Support/the-llm-ai-improv-theate/`
+*   **Linux**: `~/.config/the-llm-ai-improv-theate/`
+
+您可以直接访问这些文件夹来备份、查看或（谨慎地）修改配置文件。日志文件通常位于此目录下的 `logs` 子文件夹中。
 
 ---
 ## 💖 致谢

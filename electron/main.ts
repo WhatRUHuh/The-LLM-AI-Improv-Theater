@@ -88,7 +88,7 @@ function createWindow() {
   if (VITE_DEV_SERVER_URL) {
     // 开发模式: 加载 Vite 开发服务器 URL
     win.loadURL(VITE_DEV_SERVER_URL);
-    win.webContents.openDevTools();
+    // win.webContents.openDevTools(); // 注释掉此行，禁止开发模式下自动打开 DevTools
   } else {
     // 生产模式: 从 dist 目录加载 index.html
     // 在这里计算并检查 dist 路径

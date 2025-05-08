@@ -574,7 +574,7 @@ const AIConfigPage: React.FC = () => {
                           >
                             {(providerConfigs.get(service.providerId) || []).map(config => (
                               <Select.Option key={config.id} value={config.id}>
-                                {`${config.name} (Key: ...${config.apiKey.slice(-4)})`}
+                                {`${config.name} (Key: ...${config.apiKey.slice(-2)})`}
                               </Select.Option>
                             ))}
                           </Select>
