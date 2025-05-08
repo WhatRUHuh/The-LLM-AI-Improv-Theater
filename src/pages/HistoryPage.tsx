@@ -144,7 +144,10 @@ const HistoryPage: React.FC = () => {
         navigate('/single-user-single-ai-interface', { state: item.snapshot });
     } else if (item.mode === 'singleUserMultiAI') {
         navigate('/single-user-multi-ai-interface', { state: item.snapshot });
+    } else if (item.mode === 'director') { // 添加导演模式的处理
+        navigate('/director-mode-interface', { state: item.snapshot });
     } else {
+        // 对于其他未明确处理的模式，保留警告
         message.warning(`暂不支持查看 "${formatModeName(item.mode)}" 模式的历史记录。`);
     }
   };
