@@ -92,6 +92,15 @@ The-LLM-AI-Improv-Theater/
 ---
 
 ## 🚀 如何运行
+### 环境要求 (Prerequisites)
+
+在开始之前，请确保您的系统满足以下基本要求：
+
+1.  **[Node.js](https://nodejs.org/)**: 请安装 **LTS (长期支持)** 版本的 Node.js。**npm** (Node Package Manager) 会随 Node.js 一同安装，我们后续将使用 npm 来管理项目依赖和运行脚本。
+2.  **[Git](https://git-scm.com/)**: 您需要 Git 来克隆本项目代码仓库，并进行版本管理。请确保已正确安装 Git。
+3.  **终端/命令行**: 您需要熟悉如何在您的操作系统中打开终端（Terminal）或命令提示符（Command Prompt），并使用基本的命令（如 `cd` 切换目录）进入到本项目的根目录。
+
+---
 
 首先，确保你已经安装了 [Node.js](https://nodejs.org/) (推荐 LTS 版本) 和 npm。
 
