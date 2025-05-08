@@ -33,7 +33,6 @@ setupGlobalEncoding().catch(err => {
 });
 
 // --- 全局常量 ---
-const API_KEYS_FILE = 'apiKeys.json';
 const PROXY_CONFIG_FILE = 'proxyConfig.json';
 
 // --- 路径设置 ---
@@ -61,7 +60,7 @@ function createWindow() {
   const publicPath = process.env.VITE_PUBLIC;
   let iconPath: string | undefined;
   if (publicPath && fs.existsSync(publicPath)) {
-      const potentialIconPath = path.join(publicPath, 'electron-vite.svg');
+      const potentialIconPath = path.join(publicPath, 'vite.svg');
       if (fs.existsSync(potentialIconPath)) {
           iconPath = potentialIconPath;
       } else {
@@ -209,26 +208,6 @@ function createMenu() {
 }
 
 /**
- * 加载已保存的 API Keys 并设置到服务管理器中
- */
-async function loadAndSetApiKeys() {
-  logger.info('正在加载已保存的API密钥...');
-  try {
-    const savedKeys = await readStore<Record<string, string | null>>(API_KEYS_FILE, {});
-    logger.info('找到已保存的服务商密钥:', Object.keys(savedKeys));
-    for (const [providerId, apiKey] of Object.entries(savedKeys)) {
-      if (apiKey) {
-        logger.info(`正在为 ${providerId} 设置API密钥...`);
-        llmServiceManager.setApiKeyForService(providerId, apiKey);
-      }
-    }
-    logger.info('已完成设置保存的API密钥.');
-  } catch (error) {
-    logger.error('加载或设置已保存的API密钥时出错:', error);
-  }
-}
-
-/**
  * 加载已保存的代理配置并应用
  */
 async function loadAndApplyProxyConfig() {
@@ -313,9 +292,8 @@ app.whenReady().then(async () => {
     // 注册日志 IPC 通道
     registerLogIpcHandlers();
 
-    // 初始化 LLM 服务和加载 API Keys
+    // 初始化 LLM 服务
     await llmServiceManager.initialize();
-    await loadAndSetApiKeys();
 
     // 加载并应用代理配置
     await loadAndApplyProxyConfig();
